@@ -4,9 +4,9 @@
  */
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "stock-analyze-mcp-server",
+	"name": "stock-analyze-mcp",
 	"main": "src/index.ts",
-	"compatibility_date": "2025-10-08",
+	"compatibility_date": "2025-12-02",
 	"compatibility_flags": [
 		"nodejs_compat"
 	],
@@ -63,13 +63,10 @@
 	},
 	"migrations": [
 		{
-			"renamed_classes": [
-				{
-					"from": "MyContainer",
-					"to": "McpServer"
-				}
+			"new_sqlite_classes": [
+				"McpServer"
 			],
-			"tag": "v2"
+			"tag": "v1"
 		}
 	],
 	"upload_source_maps": true

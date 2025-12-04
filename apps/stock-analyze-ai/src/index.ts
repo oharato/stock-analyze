@@ -10,19 +10,35 @@
  *
  * Learn more at https://developers.cloudflare.com/workers/
  */
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { ServiceBindingTransport } from "./ServiceBindingTransport";
+
 export interface Env {
 	// If you set another name in the Wrangler config file as the value for 'binding',
 	// replace "AI" with the variable name you defined.
 	AI: Ai;
-	MCP_SERVER: Service;
+	MCP_SERVER: Fetcher;
 }
 
 export default {
 	async fetch(request, env, ctx): Promise<Response> {
-		const response = await env.AI.run('@cf/meta/llama-3.1-8b-instruct' as keyof AiModels, {
-			prompt: 'What is the origin of the phrase Hello, World',
-		});
+		const transport = new ServiceBindingTransport(env.MCP_SERVER);
+		const client = new Client({ name: "worker-client", version: "1.0.0" }, { capabilities: {} });
 
-		return new Response(JSON.stringify(response));
+		try {
+			await client.connect(transport);
+
+			// Example: List tools available on the MCP server
+			const tools = await client.listTools();
+
+			return new Response(JSON.stringify(tools, null, 2), {
+				headers: { "Content-Type": "application/json" }
+			});
+		} catch (error) {
+			return new Response(JSON.stringify({ error: String(error) }), {
+				status: 500,
+				headers: { "Content-Type": "application/json" }
+			});
+		}
 	},
 } satisfies ExportedHandler<Env>;

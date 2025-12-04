@@ -45,7 +45,7 @@
 	"services": [
 		{
 			"binding": "MCP_SERVER",
-			"service": "stock-analyze-mcp-server"
+			"service": "stock-analyze-mcp"
 		}
 	]
 }
