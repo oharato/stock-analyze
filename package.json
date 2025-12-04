@@ -4,6 +4,7 @@
 	"scripts": {
 		"build": "pnpm -r build",
 		"deploy:mcp-server": "pnpm --filter mcp-server run deploy",
+		"deploy:ai": "pnpm --filter stock-analyze-ai run deploy",
 		"test": "pnpm -r test",
 		"dev": "pnpm -r dev"
 	},
