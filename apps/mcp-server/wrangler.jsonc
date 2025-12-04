@@ -4,7 +4,7 @@
  */
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "try-cloudflare-containers",
+	"name": "stock-analyze",
 	"main": "src/index.ts",
 	"compatibility_date": "2025-10-08",
 	"compatibility_flags": [
@@ -28,7 +28,9 @@
 	 * Environment Variables
 	 * https://developers.cloudflare.com/workers/wrangler/configuration/#environment-variables
 	 */
-	// "vars": { "MY_VARIABLE": "production_value" }
+	"vars": {
+		"R2_BUCKET_NAME": "stock-analyze-data"
+	},
 	/**
 	 * Note: Use secrets to store sensitive data.
 	 * https://developers.cloudflare.com/workers/configuration/secrets/
@@ -45,25 +47,29 @@
 	// "services": [{ "binding": "MY_SERVICE", "service": "my-service" }]
 	"containers": [
 		{
-			"class_name": "MyContainer",
+			"class_name": "McpServer",
 			"image": "./Dockerfile",
-			"max_instances": 10
+			"instance_type": "standard-1",
+			"max_instances": 3
 		}
 	],
 	"durable_objects": {
 		"bindings": [
 			{
-				"class_name": "MyContainer",
-				"name": "MY_CONTAINER"
+				"class_name": "McpServer",
+				"name": "MCP_SERVER"
 			}
 		]
 	},
 	"migrations": [
 		{
-			"new_sqlite_classes": [
-				"MyContainer"
+			"renamed_classes": [
+				{
+					"from": "MyContainer",
+					"to": "McpServer"
+				}
 			],
-			"tag": "v1"
+			"tag": "v2"
 		}
 	],
 	"upload_source_maps": true

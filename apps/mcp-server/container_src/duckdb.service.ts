@@ -83,6 +83,7 @@ export class DuckDBService {
         const endpointOverride = (env as EnvWithEndpoint).R2_ENDPOINT;
         console.log('[Debug] initializeR2 env keys:', Object.keys(env));
         console.log('[Debug] R2_ENDPOINT:', endpointOverride);
+        console.log('[Debug] R2_BUCKET_NAME:', bucketName);
 
         if (!accountId || !accessKeyId || !secretAccessKey) {
             console.warn('Missing R2 environment variables. Skipping R2 initialization.');

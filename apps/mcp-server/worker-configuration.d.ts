@@ -4,10 +4,10 @@
 declare namespace Cloudflare {
     interface GlobalProps {
         mainModule: typeof import("./container_src/index");
-        durableNamespaces: "MyContainer";
+        durableNamespaces: "McpServer";
     }
     interface Env {
-        MY_CONTAINER: DurableObjectNamespace<import("./container_src/index").MyContainer>;
+        MCP_SERVER: DurableObjectNamespace<import("./container_src/index").McpServer>;
     }
 }
 interface Env extends Cloudflare.Env { }

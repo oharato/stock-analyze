@@ -1,47 +1,11 @@
 {
-	"name": "containers-template",
-	"description": "Build a Container-enabled Worker",
-	"cloudflare": {
-		"label": "Containers Starter",
-		"products": [
-			"Workers",
-			"Durable Objects",
-			"Containers"
-		],
-		"categories": [],
-		"docs_url": "https://developers.cloudflare.com/containers/",
-		"preview_image_url": "https://imagedelivery.net/_yJ02hpOMj_EnGvsU2aygw/5aba1fb7-b937-46fd-fa67-138221082200/public",
-		"icon_urls": [
-			"https://imagedelivery.net/wSMYJvS3Xw-n339CbDyDIA/5ca0ca32-e897-4699-d4c1-6b680512f000/public"
-		]
-	},
-	"dependencies": {
-		"@cloudflare/containers": "0.0.30",
-		"hono": "4.10.7",
-		"@duckdb/node-api": "^1.4.2-r.1",
-		"@modelcontextprotocol/sdk": "^1.0.1",
-		"@hono/node-server": "^1.19.6",
-		"zod": "^3.23.8"
-	},
-	"devDependencies": {
-		"@types/node": "^24.10.1",
-		"typescript": "5.9.3",
-		"wrangler": "4.52.1",
-		"dotenv": "^17.2.3",
-		"tsx": "^4.20.6",
-		"vitest": "3.2.4",
-		"@cloudflare/workers-types": "^4.20241112.0",
-		"axios": "^1.13.2",
-		"cheerio": "^1.1.2",
-		"turndown": "^7.2.2"
-	},
+	"name": "stock-analyze",
 	"private": true,
 	"scripts": {
-		"build": "tsc",
-		"cf-typegen": "wrangler types",
-		"deploy": "wrangler deploy",
-		"dev": "wrangler dev",
-		"start": "wrangler dev"
+		"build": "pnpm -r build",
+		"deploy:mcp-server": "pnpm --filter mcp-server run deploy",
+		"test": "pnpm -r test",
+		"dev": "pnpm -r dev"
 	},
-	"packageManager": "pnpm@10.23.0+sha512.21c4e5698002ade97e4efe8b8b4a89a8de3c85a37919f957e7a0f30f38fbc5bbdd05980ffe29179b2fb6e6e691242e098d945d1601772cad0fef5fb6411e2a4b"
+	"packageManager": "pnpm@10.23.0"
 }

@@ -8,7 +8,7 @@ import { JSONRPCMessage } from '@modelcontextprotocol/sdk/types.js';
 import { HonoSseTransport } from './hono-transports.js';
 import type { DuckDBService, Env } from './duckdb.service.js';
 
-// Load environment variables from .env file
+// Load environment variables from .env file.
 config();
 
 const app = new Hono();
