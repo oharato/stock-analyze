@@ -1,70 +1,167 @@
-import { Container, getContainer, getRandom } from "@cloudflare/containers";
-import { Hono } from "hono";
+import { Hono } from 'hono';
+import { serve } from '@hono/node-server';
+import { streamSSE } from 'hono/streaming';
+import { config } from 'dotenv';
+// import { DuckDBService, Env } from './duckdb.service.js';
+import { McpService } from './mcp.service.js';
+import { HonoSseTransport } from './hono-transport.js';
+import type { DuckDBService, Env } from './duckdb.service.js';
 
-export class MyContainer extends Container<Env> {
-	// Port the container listens on (default: 8080)
-	defaultPort = 8080;
-	// Time before container sleeps due to inactivity (default: 30s)
-	sleepAfter = "2m";
-	// Environment variables passed to the container
-	envVars = {
-		MESSAGE: "I was passed in via the container class!",
-	};
+// Load environment variables from .env file
+config();
 
-	// Optional lifecycle hooks
-	override onStart() {
-		console.log("Container successfully started");
-	}
+const app = new Hono();
 
-	override onStop() {
-		console.log("Container successfully shut down");
-	}
+// State persistence requires Durable Objects or keeping instances in memory
+const transports = new Map<string, HonoSseTransport>();
+let duckDBService: DuckDBService | null = null;
+let DuckDBServiceClass: any = null;
 
-	override onError(error: unknown) {
-		console.log("Container error:", error);
+console.log('[MCP Container] Starting index.ts...');
+
+async function getDuckDBServiceClass() {
+	if (DuckDBServiceClass) return DuckDBServiceClass;
+	try {
+		console.log('[MCP Container] Dynamically importing duckdb.service.js...');
+		const module = await import('./duckdb.service.js');
+		DuckDBServiceClass = module.DuckDBService;
+		console.log('[MCP Container] duckdb.service.js imported successfully.');
+		return DuckDBServiceClass;
+	} catch (e) {
+		console.error('[MCP Container] Failed to import duckdb.service.js:', e);
+		throw e;
 	}
 }
 
-// Create Hono app with proper typing for Cloudflare Workers
-const app = new Hono<{
-	Bindings: Env;
-}>();
+// Get environment from process.env
+function getEnv(): Env {
+	return {
+		R2_BUCKET_NAME: process.env.R2_BUCKET_NAME || '',
+		CLOUDFLARE_ACCOUNT_ID: process.env.CLOUDFLARE_ACCOUNT_ID || '',
+		R2_ACCESS_KEY_ID: process.env.R2_ACCESS_KEY_ID || '',
+		R2_SECRET_ACCESS_KEY: process.env.R2_SECRET_ACCESS_KEY || '',
+		R2_ENDPOINT: process.env.R2_ENDPOINT,
+		LOCAL_DUCKDB_PATH: process.env.LOCAL_DUCKDB_PATH,
+	};
+}
 
-// Home route with available endpoints
-app.get("/", (c) => {
-	return c.text(
-		"Available endpoints:\n" +
-			"GET /container/<ID> - Start a container for each ID with a 2m timeout\n" +
-			"GET /lb - Load balance requests over multiple containers\n" +
-			"GET /error - Start a container that errors (demonstrates error handling)\n" +
-			"GET /singleton - Get a single specific container instance",
-	);
+app.get('/', (c) => {
+	return c.text('MCP Server (Container) is running! Available endpoints: /query, /sse, /messages');
 });
 
-// Route requests to a specific container using the container ID
-app.get("/container/:id", async (c) => {
-	const id = c.req.param("id");
-	const containerId = c.env.MY_CONTAINER.idFromName(`/container/${id}`);
-	const container = c.env.MY_CONTAINER.get(containerId);
-	return await container.fetch(c.req.raw);
+// Health check endpoint for container orchestration
+app.get('/health', (c) => {
+	return c.json({ status: 'healthy' });
 });
 
-// Demonstrate error handling - this route forces a panic in the container
-app.get("/error", async (c) => {
-	const container = getContainer(c.env.MY_CONTAINER, "error-test");
-	return await container.fetch(c.req.raw);
+// Direct query endpoint
+app.post('/query', async (c) => {
+	try {
+		const { sql } = await c.req.json<{ sql: string }>();
+		if (!sql) {
+			return c.json({ error: 'Missing sql in request body' }, 400);
+		}
+
+		if (!duckDBService) {
+			const ServiceClass = await getDuckDBServiceClass();
+			duckDBService = new ServiceClass();
+		}
+		const dbService = duckDBService!;
+
+		// Initialize with env vars on every request (or check if already init)
+		await dbService.initialize(getEnv());
+
+		const result = await dbService.query(sql);
+		return c.json(result);
+	} catch (error: unknown) {
+		console.error('Query execution error:', error);
+		const errorDetails = error instanceof Error ? error.message : String(error);
+		return c.json({ error: 'Failed to execute query', details: errorDetails }, 500);
+	}
 });
 
-// Load balance requests across multiple containers
-app.get("/lb", async (c) => {
-	const container = await getRandom(c.env.MY_CONTAINER, 3);
-	return await container.fetch(c.req.raw);
+// MCP SSE endpoint
+app.get('/sse', async (c) => {
+	console.log('[MCP Container] SSE request received');
+	const sessionId = crypto.randomUUID();
+
+	if (!duckDBService) {
+		const ServiceClass = await getDuckDBServiceClass();
+		duckDBService = new ServiceClass();
+	}
+	const dbService = duckDBService!;
+
+	// If not ready, immediately return 503
+	if (!dbService.isReady()) {
+		return c.json({ error: 'Database initializing, please retry later' }, 503);
+	}
+
+	return streamSSE(c, async (stream) => {
+		console.log(`[MCP] New connection: ${sessionId}`);
+
+		const transport = new HonoSseTransport(sessionId, async (message) => {
+			await stream.writeSSE({
+				event: 'message',
+				data: JSON.stringify(message)
+			});
+		});
+
+		transports.set(sessionId, transport);
+
+		try {
+			const mcpService = new McpService(dbService);
+			const server = mcpService.createServer();
+			await server.connect(transport);
+			console.log(`[MCP] Server connected for ${sessionId}`);
+
+			// Initial endpoint notification
+			console.log(`[MCP] Sending endpoint event for ${sessionId}`);
+			await stream.writeSSE({
+				event: 'endpoint',
+				data: `/messages?sessionId=${sessionId}`
+			});
+			console.log(`[MCP] Endpoint event sent for ${sessionId}`);
+		} catch (err: unknown) {
+			console.error('Initialization error inside SSE:', err);
+		}
+
+		stream.onAbort(async () => {
+			console.log(`[MCP] Connection closed: ${sessionId}`);
+			await transport.close();
+			transports.delete(sessionId);
+		});
+
+		// Keep connection open
+		while (true) {
+			await new Promise(resolve => setTimeout(resolve, 1000));
+		}
+	});
 });
 
-// Get a single container instance (singleton pattern)
-app.get("/singleton", async (c) => {
-	const container = getContainer(c.env.MY_CONTAINER);
-	return await container.fetch(c.req.raw);
+// MCP Messages endpoint
+app.post('/messages', async (c) => {
+	const sessionId = c.req.query('sessionId');
+	if (!sessionId) {
+		return c.text('Session ID required', 400);
+	}
+
+	const transport = transports.get(sessionId);
+	if (!transport) {
+		return c.text('Session not found', 404);
+	}
+
+	const body = await c.req.json();
+	transport.handleMessage(body);
+	return c.text('Accepted');
 });
 
+const port = parseInt(process.env.PORT || '8787', 10);
+console.log(`Starting MCP Server (Container) on port ${port}`);
+
+serve({
+	fetch: app.fetch,
+	port
+});
+
+export { app };
 export default app;

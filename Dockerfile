@@ -1,24 +1,45 @@
-# syntax=docker/dockerfile:1
+# 1. Base Image
+FROM node:24-slim
 
-FROM golang:1.24-alpine AS build
-
-# Set destination for COPY
+# 2. Set Working Directory
 WORKDIR /app
 
-# Download any Go modules
-COPY container_src/go.mod ./
-RUN go mod download
+# 3. Install build dependencies for native modules
+RUN apt-get update && apt-get install -y \
+    python3 \
+    make \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy container source code
-COPY container_src/*.go ./
+# 4. Install pnpm
+RUN npm install -g pnpm
 
-# Build
-RUN CGO_ENABLED=0 GOOS=linux go build -o /server
+# 5. Copy dependency manifests from monorepo root
+COPY pnpm-lock.yaml ./
+COPY pnpm-workspace.yaml ./
+COPY package.json ./
+COPY tsconfig.base.json ./
 
-FROM scratch
-COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-COPY --from=build /server /server
-EXPOSE 8080
+# 6. Copy all package manifests and source code
+COPY packages ./packages
 
-# Run
-CMD ["/server"]
+# 7. Install all dependencies for mcp-server-container
+RUN pnpm install --filter @stock-analyze/mcp-server-container
+
+
+# 8. Build TypeScript for the mcp-server-container workspace
+RUN pnpm --filter @stock-analyze/mcp-server-container build
+
+# 9. Copy only the required Linux x64 duckdb.node binary into the container
+COPY node_modules/.pnpm/@duckdb+node-bindings-linux-x64@1.4.2-r.1/node_modules/@duckdb/node-bindings-linux-x64/duckdb.node packages/mcp-server-container/node_modules/@duckdb/node-bindings-linux-x64/duckdb.node
+
+# 9. Expose port
+EXPOSE 8787
+
+# 10. Set environment
+ENV NODE_ENV=production
+ENV PORT=8787
+
+# 11. Set start command
+WORKDIR /app/packages/mcp-server-container
+CMD ["node", "dist/index.js"]
