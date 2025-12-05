@@ -59,9 +59,19 @@ Here are some guidelines for using the tools:
 - **DO NOT** use \`get_table_schema\`. Use the schema information provided above.
 - Use \`get_duckdb_functions\` to see available DuckDB functions, date formatting tips, and schema details. Use this if you need to write complex SQL involving dates (e.g. "last month").
 - **IMPORTANT**: When using \`execute_sql\`, you **MUST** prefix all table names with \`stock_db.\`. For example, use \`stock_db.prices\`, \`stock_db.fundamentals\`, \`stock_db.companies\`. Do NOT use \`prices\` directly.
-- **IMPORTANT (Company Names)**: The \`prices\` table only has a \`code\` column (stock code), NOT a company name. To filter by company name, you **MUST JOIN** \`stock_db.prices\` with \`stock_db.companies\` on \`code\`.
-  - The \`code\` column is of type **INTEGER**. Do NOT compare it with a company name string (e.g. \`WHERE code = 'Apple'\` will FAIL).
-  - Example: \`SELECT p.* FROM stock_db.prices p JOIN stock_db.companies c ON p.code = c.code WHERE c.name LIKE '%CompanyName%'\`
+
+- **CRITICAL (Company Name Search)**: 
+  - The \`prices\` table only has a \`code\` column (INTEGER), NOT a company name.
+  - To search by company name, you **MUST** use LIKE search with wildcards: \`WHERE c.name LIKE '%CompanyName%'\`
+  - **NEVER** use exact match (\`WHERE c.name = 'CompanyName'\`) as it will fail for partial names.
+  - **ALWAYS JOIN** with \`stock_db.companies\` when filtering by company name.
+  - **ALWAYS SELECT company name** (\`c.name\`) in your query so users know which company the data is for.
+  - Examples:
+    * "ラクーン" → \`WHERE c.name LIKE '%ラクーン%'\`
+    * "トヨタ" → \`WHERE c.name LIKE '%トヨタ%'\`
+    * "Apple" → \`WHERE c.name LIKE '%Apple%'\`
+  - Full query example: \`SELECT p.*, c.name as company_name FROM stock_db.prices p JOIN stock_db.companies c ON p.code = c.code WHERE c.name LIKE '%ラクーン%' ORDER BY p.date DESC LIMIT 1\`
+
 - **IMPORTANT (Dates)**: The \`prices\` table has a \`date\` column which is BIGINT (milliseconds).
   - To compare with dates, use \`epoch_ms(date)::DATE\`.
   - Use \`current_date\` for "now" or "today". **DO NOT** use \`datetime('now')\`.
@@ -124,18 +134,24 @@ If no tool is suitable, respond with:
 				arguments: toolCall.arguments
 			}) as any;
 
-			// 6. Return Result
-			// The result from MCP is { content: [{ type: 'text', text: '...' }] }
-			// We want to return the raw data if it's JSON, or the text.
+			// 6. Return Result with metadata
 			const content = result.content[0];
 			if (content.type === 'text') {
 				try {
 					const data = JSON.parse(content.text);
-					return new Response(JSON.stringify(data), {
+					return new Response(JSON.stringify({
+						question: question,
+						tool_used: toolCall.tool,
+						data: data
+					}), {
 						headers: { "Content-Type": "application/json" }
 					});
 				} catch {
-					return new Response(JSON.stringify({ result: content.text }), {
+					return new Response(JSON.stringify({
+						question: question,
+						tool_used: toolCall.tool,
+						result: content.text
+					}), {
 						headers: { "Content-Type": "application/json" }
 					});
 				}
