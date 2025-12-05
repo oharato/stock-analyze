@@ -7,9 +7,9 @@ export class ExecuteSqlTool implements ToolHandler {
   getDefinition(): ToolDefinition {
     return {
       name: "execute_sql",
-      description: "Execute a raw SQL query against the DuckDB database. The database contains 'prices' and 'fundamentals' tables in the 'stock_db' schema. prices table has columns: code, date (BIGINT ms), open, high, low, close, adjClose, volume. fundamentals table has columns: code, year, etc. ALWAYS prefix table names with 'stock_db.' (e.g. stock_db.prices).",
+      description: "Execute SQL query against DuckDB. Tables: stock_db.prices (code, date, open, high, low, close, adjClose, volume), stock_db.fundamentals, stock_db.companies. Always prefix with 'stock_db.'",
       inputSchema: {
-        sql: z.string().describe("The DuckDB SQL query to execute."),
+        sql: z.string().describe("DuckDB SQL query to execute"),
       },
     };
   }

@@ -6,49 +6,37 @@ import { GetTableSchemaTool } from "./tools/getTableSchema.js";
 import { GetDuckDbFunctionsTool } from "./tools/getDuckDbFunctions.js";
 
 export class McpService {
-    private tools: ToolHandler[];
+    private readonly tools: ToolHandler[] = [
+        new ExecuteSqlTool(),
+        new GetTableSchemaTool(),
+        new GetDuckDbFunctionsTool(),
+    ];
 
-    constructor(private duckDb: DuckDBService) {
-        this.tools = [
-            new ExecuteSqlTool(),
-            new GetTableSchemaTool(),
-            new GetDuckDbFunctionsTool(),
-        ];
-    }
+    constructor(private readonly duckDb: DuckDBService) { }
 
     public createServer(): McpServer {
         const server = new McpServer(
-            {
-                name: "stock-analyze-mcp-server-container",
-                version: "1.0.0",
-            },
-            {
-                capabilities: {
-                    tools: {},
-                },
-            }
+            { name: "stock-analyze-mcp", version: "1.0.0" },
+            { capabilities: { tools: {} } }
         );
 
-        // Register each tool using the new McpServer API
-        for (const tool of this.tools) {
-            const definition = tool.getDefinition();
+        // Register all tools
+        this.tools.forEach(tool => {
+            const { name, description, inputSchema } = tool.getDefinition();
 
             server.registerTool(
-                definition.name,
-                {
-                    description: definition.description,
-                    inputSchema: definition.inputSchema,
-                },
+                name,
+                { description, inputSchema },
                 async (args: any) => {
                     try {
                         return await tool.execute(args, this.duckDb);
                     } catch (err) {
-                        console.error(`[McpService] Tool execution error for ${definition.name}:`, err);
+                        console.error(`[Tool:${name}] Error:`, err);
                         throw err;
                     }
                 }
             );
-        }
+        });
 
         return server;
     }
