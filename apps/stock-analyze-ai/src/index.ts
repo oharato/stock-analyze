@@ -18,11 +18,12 @@ export interface Env {
 	// replace "AI" with the variable name you defined.
 	AI: Ai;
 	MCP_SERVER: Fetcher;
+	MCP_PORT?: string;
 }
 
 export default {
 	async fetch(request, env, ctx): Promise<Response> {
-		const transport = new ServiceBindingTransport(env.MCP_SERVER);
+		const transport = new ServiceBindingTransport(env.MCP_SERVER, "/sse", "", env.MCP_PORT);
 		const client = new Client({ name: "worker-client", version: "1.0.0" }, { capabilities: {} });
 
 		try {
