@@ -2,11 +2,10 @@ import { Hono } from 'hono';
 import { serve } from '@hono/node-server';
 import { streamSSE } from 'hono/streaming';
 import { config } from 'dotenv';
-// import { DuckDBService, Env } from './duckdb.service.js';
+import { DuckDBService, Env } from './duckdb.service.js';
 import { McpService } from './mcp.service.js';
 import { JSONRPCMessage } from '@modelcontextprotocol/sdk/types.js';
 import { HonoSseTransport } from './hono-transports.js';
-import type { DuckDBService, Env } from './duckdb.service.js';
 
 // Load environment variables from .env file.
 config();
@@ -16,23 +15,22 @@ const app = new Hono();
 // State persistence requires Durable Objects or keeping instances in memory
 const transports = new Map<string, HonoSseTransport>();
 let duckDBService: DuckDBService | null = null;
-let DuckDBServiceClass: any = null;
 
 console.log('[MCP Container] Starting index.ts...');
 
-async function getDuckDBServiceClass() {
-	if (DuckDBServiceClass) return DuckDBServiceClass;
+// Initialize DuckDB service at startup
+(async () => {
 	try {
-		console.log('[MCP Container] Dynamically importing duckdb.service.js...');
-		const module = await import('./duckdb.service.js');
-		DuckDBServiceClass = module.DuckDBService;
-		console.log('[MCP Container] duckdb.service.js imported successfully.');
-		return DuckDBServiceClass;
+		console.log('[MCP Container] Initializing DuckDB service at startup...');
+		const service = new DuckDBService();
+		await service.initialize(getEnv());
+		duckDBService = service;
+		console.log('[MCP Container] DuckDB service initialized successfully');
 	} catch (e) {
-		console.error('[MCP Container] Failed to import duckdb.service.js:', e);
-		throw e;
+		console.error('[MCP Container] Failed to initialize DuckDB at startup:', e);
+		console.error('[MCP Container] Service will attempt lazy initialization on first request');
 	}
-}
+})();
 
 // Get environment from process.env
 function getEnv(): Env {
@@ -63,14 +61,12 @@ app.post('/query', async (c) => {
 			return c.json({ error: 'Missing sql in request body' }, 400);
 		}
 
+		// Use pre-initialized service or lazy init as fallback
 		if (!duckDBService) {
-			const ServiceClass = await getDuckDBServiceClass();
-			duckDBService = new ServiceClass();
+			duckDBService = new DuckDBService();
+			await duckDBService.initialize(getEnv());
 		}
 		const dbService = duckDBService!;
-
-		// Initialize with env vars on every request (or check if already init)
-		await dbService.initialize(getEnv());
 
 		const result = await dbService.query(sql);
 		return c.json(result);
@@ -86,16 +82,12 @@ app.get('/sse', async (c) => {
 	console.log('[MCP Container] SSE request received');
 	const sessionId = crypto.randomUUID();
 
+	// Use pre-initialized service or lazy init as fallback
 	if (!duckDBService) {
-		const ServiceClass = await getDuckDBServiceClass();
-		duckDBService = new ServiceClass();
+		duckDBService = new DuckDBService();
+		await duckDBService.initialize(getEnv());
 	}
 	const dbService = duckDBService!;
-
-	// If not ready, immediately return 503
-	if (!dbService.isReady()) {
-		return c.json({ error: 'Database initializing, please retry later' }, 503);
-	}
 
 	return streamSSE(c, async (stream) => {
 		console.log(`[MCP] New connection: ${sessionId}`);

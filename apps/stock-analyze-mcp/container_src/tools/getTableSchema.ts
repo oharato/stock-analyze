@@ -27,12 +27,8 @@ export class GetTableSchemaTool implements ToolHandler {
       };
     }
 
-    // Query information_schema from the attached database 'stock_db'
-    const sql = `
-        SELECT column_name, data_type 
-        FROM stock_db.information_schema.columns 
-        WHERE table_name = '${table_name}'
-    `;
+    // Use DESCRIBE to get table schema, ensuring we look at the attached stock_db
+    const sql = `DESCRIBE stock_db.${table_name}`;
     const result = await duckDb.query(sql);
     return {
       content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
