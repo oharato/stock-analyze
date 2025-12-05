@@ -1,5 +1,4 @@
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { DuckDBService } from "./duckdb.service.js";
 import { ToolHandler } from "./tools/types.js";
 import { ExecuteSqlTool } from "./tools/executeSql.js";
@@ -17,8 +16,8 @@ export class McpService {
         ];
     }
 
-    public createServer(): Server {
-        const server = new Server(
+    public createServer(): McpServer {
+        const server = new McpServer(
             {
                 name: "stock-analyze-mcp-server-container",
                 version: "1.0.0",
@@ -30,36 +29,27 @@ export class McpService {
             }
         );
 
-        this.setupHandlers(server);
+        // Register each tool using the new McpServer API
+        for (const tool of this.tools) {
+            const definition = tool.getDefinition();
+
+            server.registerTool(
+                definition.name,
+                {
+                    description: definition.description,
+                    inputSchema: definition.inputSchema,
+                },
+                async (args: any) => {
+                    try {
+                        return await tool.execute(args, this.duckDb);
+                    } catch (err) {
+                        console.error(`[McpService] Tool execution error for ${definition.name}:`, err);
+                        throw err;
+                    }
+                }
+            );
+        }
+
         return server;
-    }
-
-    private setupHandlers(server: Server): void {
-        server.setRequestHandler(ListToolsRequestSchema, async () => {
-            return {
-                tools: this.tools.map((t) => t.getDefinition()),
-            };
-        });
-
-        server.setRequestHandler(CallToolRequestSchema, async (request) => {
-            const { name, arguments: args } = request.params;
-            const tool = this.tools.find((t) => t.getDefinition().name === name);
-
-            if (!tool) {
-                throw new Error(`Tool not found: ${name}`);
-            }
-
-            console.log(`[McpService] Executing tool ${name}. duckDb instance exists?:`, !!this.duckDb);
-            if (!this.duckDb) {
-                console.error('[McpService] duckDb instance is null/undefined!');
-            }
-
-            try {
-                return await tool.execute(args, this.duckDb);
-            } catch (err) {
-                console.error(`[McpService] Tool execution error for ${name}:`, err);
-                throw err;
-            }
-        });
     }
 }

@@ -18,20 +18,6 @@ let duckDBService: DuckDBService | null = null;
 
 console.log('[MCP Container] Starting index.ts...');
 
-// Initialize DuckDB service at startup
-(async () => {
-	try {
-		console.log('[MCP Container] Initializing DuckDB service at startup...');
-		const service = new DuckDBService();
-		await service.initialize(getEnv());
-		duckDBService = service;
-		console.log('[MCP Container] DuckDB service initialized successfully');
-	} catch (e) {
-		console.error('[MCP Container] Failed to initialize DuckDB at startup:', e);
-		console.error('[MCP Container] Service will attempt lazy initialization on first request');
-	}
-})();
-
 // Get environment from process.env
 function getEnv(): Env {
 	return {
@@ -43,6 +29,27 @@ function getEnv(): Env {
 		LOCAL_DUCKDB_PATH: process.env.LOCAL_DUCKDB_PATH,
 	};
 }
+
+// Ensure DuckDB service is initialized (lazy init fallback)
+async function ensureDuckDBService(): Promise<DuckDBService> {
+	if (!duckDBService) {
+		duckDBService = new DuckDBService();
+		await duckDBService.initialize(getEnv());
+	}
+	return duckDBService;
+}
+
+// Initialize DuckDB service at startup
+(async () => {
+	try {
+		console.log('[MCP Container] Initializing DuckDB service at startup...');
+		await ensureDuckDBService();
+		console.log('[MCP Container] DuckDB service initialized successfully');
+	} catch (e) {
+		console.error('[MCP Container] Failed to initialize DuckDB at startup:', e);
+		console.error('[MCP Container] Service will attempt lazy initialization on first request');
+	}
+})();
 
 app.get('/', (c) => {
 	return c.text('MCP Server (Container) is running! Available endpoints: /query, /sse, /messages');
@@ -61,13 +68,7 @@ app.post('/query', async (c) => {
 			return c.json({ error: 'Missing sql in request body' }, 400);
 		}
 
-		// Use pre-initialized service or lazy init as fallback
-		if (!duckDBService) {
-			duckDBService = new DuckDBService();
-			await duckDBService.initialize(getEnv());
-		}
-		const dbService = duckDBService!;
-
+		const dbService = await ensureDuckDBService();
 		const result = await dbService.query(sql);
 		return c.json(result);
 	} catch (error: unknown) {
@@ -82,17 +83,12 @@ app.get('/sse', async (c) => {
 	console.log('[MCP Container] SSE request received');
 	const sessionId = crypto.randomUUID();
 
-	// Use pre-initialized service or lazy init as fallback
-	if (!duckDBService) {
-		duckDBService = new DuckDBService();
-		await duckDBService.initialize(getEnv());
-	}
-	const dbService = duckDBService!;
+	const dbService = await ensureDuckDBService();
 
 	return streamSSE(c, async (stream) => {
 		console.log(`[MCP] New connection: ${sessionId}`);
 
-		const transport = new HonoSseTransport(sessionId, async (message: JSONRPCMessage) => {
+		const transport = new HonoSseTransport(async (message: JSONRPCMessage) => {
 			await stream.writeSSE({
 				event: 'message',
 				data: JSON.stringify(message)

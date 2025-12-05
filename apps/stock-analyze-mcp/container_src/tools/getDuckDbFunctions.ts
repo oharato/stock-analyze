@@ -1,20 +1,17 @@
-import { ToolHandler } from "./types.js";
+import { ToolHandler, ToolDefinition } from "./types.js";
 import type { DuckDBService } from "../duckdb.service.js";
-import { Tool } from "@modelcontextprotocol/sdk/types.js";
+import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 
 export class GetDuckDbFunctionsTool implements ToolHandler {
-  getDefinition(): Tool {
+  getDefinition(): ToolDefinition {
     return {
       name: "get_duckdb_functions",
       description: "Returns a list of useful DuckDB functions, date formatting tips, and schema information to help write valid SQL queries.",
-      inputSchema: {
-        type: "object",
-        properties: {},
-      },
+      inputSchema: {}, // No input parameters needed
     };
   }
 
-  async execute(_args: unknown, _duckDb: DuckDBService) {
+  async execute(_args: unknown, _duckDb: DuckDBService): Promise<CallToolResult> {
     const info = `
 **DuckDB Context & Useful Functions**
 
@@ -38,7 +35,7 @@ export class GetDuckDbFunctionsTool implements ToolHandler {
    \`SELECT * FROM stock_db.prices WHERE code='1301' AND epoch_ms(date)::DATE >= current_date - INTERVAL 7 DAY;\`
 `;
     return {
-      content: [{ type: "text", text: info }],
+      content: [{ type: "text" as const, text: info }],
     };
   }
 }
