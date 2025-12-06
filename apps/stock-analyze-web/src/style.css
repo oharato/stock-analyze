@@ -645,7 +645,7 @@ body::before {
   background: var(--color-bg-secondary);
   border: 1px solid hsla(0, 0%, 100%, 0.1);
   border-radius: var(--radius-md);
-  height: 300px;
+  height: 380px;
   position: relative;
 }
 

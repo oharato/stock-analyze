@@ -17,13 +17,11 @@ export interface TableData {
 }
 
 export interface ChartData {
-    type: 'line' | 'bar' | 'pie';
-    labels: string[];
-    datasets: {
-        label: string;
-        data: number[];
-        backgroundColor?: string | string[];
-        borderColor?: string;
+    type: 'line' | 'bar' | 'pie' | 'candlestick';
+    labels?: string[]; // For line/bar/pie
+    series: {          // ApexCharts structure
+        name: string;
+        data: number[] | { x: any; y: any }[];
     }[];
 }
 
@@ -57,70 +55,69 @@ function processResponse(data: any): ChatResponse {
     let chartData: ChartData | undefined;
 
     if (data.tool_used === 'execute_sql' && data.data) {
-        // SQL を取得（data.data が配列の場合、最初の要素から取得を試みる）
         sql = data.sql || '';
+        let rawRows: any[] = [];
+        let rowKeys: string[] = [];
 
-        console.log('[SQL]', sql);
-        console.log('[Data]', data.data);
-
-        // カラム名の日本語マッピング
-        const columnMapping: Record<string, string> = {
-            'code': '銘柄コード',
-            'company_name': '会社名',
-            'datef': '日付',
-            'week_start': '週',
-            'month_start': '月',
-            'open': '始値',
-            'high': '高値',
-            'low': '安値',
-            'close': '終値',
-            'volume': '出来高',
-        };
-
-        // 表示するカラムの順序
-        const displayColumns = ['code', 'company_name', 'datef', 'week_start', 'month_start', 'open', 'high', 'low', 'close', 'volume'];
-
-        // data.data が配列の場合
+        // Normalize data to Array of Objects
         if (Array.isArray(data.data) && data.data.length > 0) {
-            const rowCount = data.data.length;
+            rawRows = data.data;
+            rowKeys = Object.keys(rawRows[0]);
+        } else if (data.data.rows && data.data.columns) {
+            rowKeys = data.data.columns;
+            rawRows = data.data.rows.map((r: any[]) => {
+                const obj: any = {};
+                rowKeys.forEach((col, i) => obj[col] = r[i]);
+                return obj;
+            });
+        }
+
+        if (rawRows.length > 0) {
+            const rowCount = rawRows.length;
             answer = `SQL クエリを実行しました。\n\n実行結果: ${rowCount} 件のデータを取得しました。`;
 
-            // データのキーを取得
-            const rowKeys = Object.keys(data.data[0]);
-
-            // 利用可能なカラムをフィルタリング
+            // 1. Table Data Processing
+            const columnMapping: Record<string, string> = {
+                'code': '銘柄コード', 'company_name': '会社名', 'datef': '日付', 'date': '日付',
+                'week_start': '週', 'month_start': '月',
+                'open': '始値', 'high': '高値', 'low': '安値', 'close': '終値', 'volume': '出来高',
+            };
+            const displayColumns = ['code', 'company_name', 'date', 'datef', 'week_start', 'month_start', 'open', 'high', 'low', 'close', 'volume'];
             const availableColumns = displayColumns.filter(col => rowKeys.includes(col));
 
-            // テーブルデータを作成
             tableData = {
                 columns: availableColumns.map(col => columnMapping[col] || col),
-                rows: data.data.map((row: any) =>
+                rows: rawRows.map((row: any) =>
                     availableColumns.map((col: string) => String(row[col] ?? ''))
                 ),
             };
-            console.log('[TableData]', tableData);
-        }
-        // data.data が {columns, rows} 形式の場合
-        else if (data.data.columns && data.data.rows && data.data.rows.length > 0) {
-            const rowCount = data.data.rows.length;
-            answer = `SQL クエリを実行しました。\n\n実行結果: ${rowCount} 件のデータを取得しました。`;
 
-            // 利用可能なカラムをフィルタリング
-            const availableColumns = displayColumns.filter(col => data.data.columns.includes(col));
+            // 2. Chart Data Processing (Auto-detect Candlestick)
+            const hasOHLC = ['open', 'high', 'low', 'close'].every(k => rowKeys.includes(k));
+            const dateKey = rowKeys.find(k => ['week_start', 'month_start', 'datef', 'date'].includes(k));
 
-            tableData = {
-                columns: availableColumns.map(col => columnMapping[col] || col),
-                rows: data.data.rows.map((row: any) =>
-                    availableColumns.map((col: string) => String(row[col] ?? ''))
-                ),
-            };
-            console.log('[TableData]', tableData);
+            if (hasOHLC && dateKey) {
+                // ApexCharts Candlestick Format: [{ x: date, y: [open, high, low, close] }]
+                const candleData = rawRows.map((row: any) => ({
+                    x: new Date(row[dateKey!]).getTime(),
+                    y: [row.open, row.high, row.low, row.close].map(Number)
+                })).sort((a: any, b: any) => a.x - b.x);
+
+                chartData = {
+                    type: 'candlestick',
+                    series: [{
+                        name: '株価',
+                        data: candleData
+                    }]
+                };
+            }
         } else {
             answer += '\n\nデータが見つかりませんでした。';
         }
     } else if (data.result) {
         answer = data.result;
     } else {
+        // Fallback for generic JSON
         answer = JSON.stringify(data, null, 2);
     }
 
@@ -230,12 +227,10 @@ LIMIT 30`;
     const mockChartData: ChartData = {
         type: 'line',
         labels: ['12/01', '12/02', '12/03', '12/04', '12/05'],
-        datasets: [
+        series: [
             {
-                label: '株価（円）',
+                name: '株価（円）',
                 data: [14730, 14800, 14680, 14860, 15230],
-                borderColor: 'hsl(250, 100%, 65%)',
-                backgroundColor: 'hsla(250, 100%, 65%, 0.1)',
             },
         ],
     };
@@ -262,16 +257,10 @@ LIMIT 30`;
             chartData: {
                 type: 'bar' as const,
                 labels: ['テクノロジー', '金融', 'ヘルスケア', 'エネルギー'],
-                datasets: [
+                series: [
                     {
-                        label: '平均変動率（%）',
+                        name: '平均変動率（%）',
                         data: [3.2, 2.1, 1.5, 0.2],
-                        backgroundColor: [
-                            'hsl(250, 100%, 65%)',
-                            'hsl(280, 100%, 70%)',
-                            'hsl(180, 100%, 60%)',
-                            'hsl(40, 95%, 60%)',
-                        ],
                     },
                 ],
             },
@@ -311,16 +300,14 @@ async function mockSQLCall(sql: string): Promise<ChatResponse> {
     const mockChartData: ChartData = {
         type: 'line',
         labels: ['12/03', '12/04', '12/05'],
-        datasets: [
+        series: [
             {
-                label: 'AAPL',
+                name: 'AAPL',
                 data: [14680, 14860, 15230],
-                borderColor: 'hsl(250, 100%, 65%)',
             },
             {
-                label: 'GOOGL',
+                name: 'GOOGL',
                 data: [27800, 27980, 28450],
-                borderColor: 'hsl(180, 100%, 60%)',
             },
         ],
     };

@@ -272,17 +272,14 @@ ${recipe}
 
 # INSTRUCTION:
 1. Use the recipe above EXACTLY.
-2. Replace '%SEARCH_TERM%' with the Company Name from the query: "${question}"
-   - Example: "ラクーンの株価" -> Search term: "ラクーン"
-   - Example: "トヨタ自動車について" -> Search term: "トヨタ"
-3. **IMPORTANT**: Write the SQL as a SINGLE LINE string (no newlines) to avoid JSON errors.
-4. Call the \`execute_sql\` tool.
+2. Replace '%SEARCH_TERM%' with the user's query: "${question}"
+3. Call the \`execute_sql\` tool.
 
 Response Format:
 {
   "tool": "execute_sql",
   "arguments": {
-    "sql": "SELECT ... (one line) ..."
+    "sql": "..."
   }
 }
 `;

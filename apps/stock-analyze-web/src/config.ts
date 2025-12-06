@@ -13,7 +13,7 @@ export const config = {
 
     // 本番環境用の設定
     production: {
-        apiEndpoint: '/api/chat', // Cloudflare Workers のエンドポイント
+        apiEndpoint: 'https://stock-analyze.ohchans.com/api', // Cloudflare Workers のエンドポイント
         useMockAPI: false,
     },
 };

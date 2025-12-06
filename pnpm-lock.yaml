@@ -75,6 +75,9 @@ importers:
       alpinejs:
         specifier: ^3.15.2
         version: 3.15.2
+      apexcharts:
+        specifier: ^5.3.6
+        version: 5.3.6
       chart.js:
         specifier: ^4.5.1
         version: 4.5.1
@@ -91,6 +94,9 @@ importers:
       vite:
         specifier: ^7.2.4
         version: 7.2.6(@types/node@24.10.1)(tsx@4.21.0)
+      wrangler:
+        specifier: 4.52.1
+        version: 4.52.1(@cloudflare/workers-types@4.20251202.0)
 
 packages:
 
@@ -1118,6 +1124,31 @@ packages:
   '@speed-highlight/core@1.2.12':
     resolution: {integrity: sha512-uilwrK0Ygyri5dToHYdZSjcvpS2ZwX0w5aSt3GCEN9hrjxWCoeV4Z2DTXuxjwbntaLQIEEAlCeNQss5SoHvAEA==}
 
+  '@svgdotjs/svg.draggable.js@3.0.6':
+    resolution: {integrity: sha512-7iJFm9lL3C40HQcqzEfezK2l+dW2CpoVY3b77KQGqc8GXWa6LhhmX5Ckv7alQfUXBuZbjpICZ+Dvq1czlGx7gA==}
+    peerDependencies:
+      '@svgdotjs/svg.js': ^3.2.4
+
+  '@svgdotjs/svg.filter.js@3.0.9':
+    resolution: {integrity: sha512-/69XMRCDoam2HgC4ldHIaDgeQf1ViHIsa0Ld4uWgiXtZ+E24DWHe/9Ib6kbNiZ7WRIdlVokUDR1Fg0kjIpkfbw==}
+    engines: {node: '>= 0.8.0'}
+
+  '@svgdotjs/svg.js@3.2.5':
+    resolution: {integrity: sha512-/VNHWYhNu+BS7ktbYoVGrCmsXDh+chFMaONMwGNdIBcFHrWqk2jY8fNyr3DLdtQUIalvkPfM554ZSFa3dm3nxQ==}
+
+  '@svgdotjs/svg.resize.js@2.0.5':
+    resolution: {integrity: sha512-4heRW4B1QrJeENfi7326lUPYBCevj78FJs8kfeDxn5st0IYPIRXoTtOSYvTzFWgaWWXd3YCDE6ao4fmv91RthA==}
+    engines: {node: '>= 14.18'}
+    peerDependencies:
+      '@svgdotjs/svg.js': ^3.2.4
+      '@svgdotjs/svg.select.js': ^4.0.1
+
+  '@svgdotjs/svg.select.js@4.0.3':
+    resolution: {integrity: sha512-qkMgso1sd2hXKd1FZ1weO7ANq12sNmQJeGDjs46QwDVsxSRcHmvWKL2NDF7Yimpwf3sl5esOLkPqtV2bQ3v/Jg==}
+    engines: {node: '>= 14.18'}
+    peerDependencies:
+      '@svgdotjs/svg.js': ^3.2.4
+
   '@types/alpinejs@3.13.11':
     resolution: {integrity: sha512-3KhGkDixCPiLdL3Z/ok1GxHwLxEWqQOKJccgaQL01wc0EVM2tCTaqlC3NIedmxAXkVzt/V6VTM8qPgnOHKJ1MA==}
 
@@ -1172,6 +1203,9 @@ packages:
   '@vue/shared@3.1.5':
     resolution: {integrity: sha512-oJ4F3TnvpXaQwZJNF3ZK+kLPHKarDmJjJ6jyzVNDKH9md1dptjC7lWR//jrGuLdek/U6iltWxqAnYOu8gCiOvA==}
 
+  '@yr/monotone-cubic-spline@1.0.3':
+    resolution: {integrity: sha512-FQXkOta0XBSUPHndIKON2Y9JeQz5ZeMqLYZVVK93FliNBFm7LNMIZmY6FrMEB9XPcDbE2bekMbZD6kzDkxwYjA==}
+
   accepts@2.0.0:
     resolution: {integrity: sha512-5cvg6CtKwfgdmVqY1WIiXKc3Q1bkRqGLi+2W/6ao+6Y7gu/RCwRuAhGEzh5B4KlszSuTLgZYuqFqo5bImjNKng==}
     engines: {node: '>= 0.6'}
@@ -1198,6 +1232,9 @@ packages:
 
   alpinejs@3.15.2:
     resolution: {integrity: sha512-2kYF2aG+DTFkE6p0rHG5XmN4VEb6sO9b02aOdU4+i8QN6rL0DbRZQiypDE1gBcGO65yDcqMz5KKYUYgMUxgNkw==}
+
+  apexcharts@5.3.6:
+    resolution: {integrity: sha512-sVEPw+J0Gp0IHQabKu8cfdsxlfME0e36Wid7RIaPclGM2OUt+O7O4+6mfAmTUYhy5bDk8cNHzEhPfVtLCIXEJA==}
 
   assertion-error@2.0.1:
     resolution: {integrity: sha512-Izi8RQcffqCeNVgFigKli1ssklIbpHnCYc6AknXGYoB6grJqyeby7jv12JUQgmTAnIDnbck1uxksT4dzN3PWBA==}
@@ -2566,6 +2603,25 @@ snapshots:
 
   '@speed-highlight/core@1.2.12': {}
 
+  '@svgdotjs/svg.draggable.js@3.0.6(@svgdotjs/svg.js@3.2.5)':
+    dependencies:
+      '@svgdotjs/svg.js': 3.2.5
+
+  '@svgdotjs/svg.filter.js@3.0.9':
+    dependencies:
+      '@svgdotjs/svg.js': 3.2.5
+
+  '@svgdotjs/svg.js@3.2.5': {}
+
+  '@svgdotjs/svg.resize.js@2.0.5(@svgdotjs/svg.js@3.2.5)(@svgdotjs/svg.select.js@4.0.3(@svgdotjs/svg.js@3.2.5))':
+    dependencies:
+      '@svgdotjs/svg.js': 3.2.5
+      '@svgdotjs/svg.select.js': 4.0.3(@svgdotjs/svg.js@3.2.5)
+
+  '@svgdotjs/svg.select.js@4.0.3(@svgdotjs/svg.js@3.2.5)':
+    dependencies:
+      '@svgdotjs/svg.js': 3.2.5
+
   '@types/alpinejs@3.13.11': {}
 
   '@types/chai@5.2.3':
@@ -2633,6 +2689,8 @@ snapshots:
 
   '@vue/shared@3.1.5': {}
 
+  '@yr/monotone-cubic-spline@1.0.3': {}
+
   accepts@2.0.0:
     dependencies:
       mime-types: 3.0.2
@@ -2656,6 +2714,15 @@ snapshots:
   alpinejs@3.15.2:
     dependencies:
       '@vue/reactivity': 3.1.5
+
+  apexcharts@5.3.6:
+    dependencies:
+      '@svgdotjs/svg.draggable.js': 3.0.6(@svgdotjs/svg.js@3.2.5)
+      '@svgdotjs/svg.filter.js': 3.0.9
+      '@svgdotjs/svg.js': 3.2.5
+      '@svgdotjs/svg.resize.js': 2.0.5(@svgdotjs/svg.js@3.2.5)(@svgdotjs/svg.select.js@4.0.3(@svgdotjs/svg.js@3.2.5))
+      '@svgdotjs/svg.select.js': 4.0.3(@svgdotjs/svg.js@3.2.5)
+      '@yr/monotone-cubic-spline': 1.0.3
 
   assertion-error@2.0.1: {}
 

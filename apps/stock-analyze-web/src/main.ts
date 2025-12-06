@@ -2,7 +2,7 @@ import './style.css';
 import Alpine from 'alpinejs';
 import { sendChatMessage, sendSQLQuery, type ChatResponse, type TableData, type ChartData } from './api';
 import { createChart, destroyChart } from './chart';
-import type { Chart } from 'chart.js';
+import ApexCharts from 'apexcharts';
 
 // Alpine.js をグローバルに設定
 declare global {
@@ -30,7 +30,7 @@ Alpine.data('chatApp', () => ({
   inputText: '',
   isLoading: false,
   mode: 'chat',  // チャットモードまたはSQLモード
-  charts: new Map() as any as Map<string, Chart>,  // メッセージIDとチャートのマップ
+  charts: new Map() as any as Map<string, ApexCharts>,  // メッセージIDとチャートのマップ
 
   init() {
     console.log('Stock Analysis AI initialized');
@@ -184,9 +184,9 @@ Alpine.data('chatApp', () => ({
 
   // チャートをレンダリング
   renderChart(messageId: string, chartData: ChartData) {
-    const canvas = document.getElementById(`chart-${messageId}`) as HTMLCanvasElement;
-    if (!canvas) {
-      console.warn(`Canvas not found for message ${messageId}`);
+    const element = document.getElementById(`chart-${messageId}`);
+    if (!element) {
+      console.warn(`Chart container not found for message ${messageId}`);
       return;
     }
 
@@ -197,7 +197,7 @@ Alpine.data('chatApp', () => ({
     }
 
     // 新しいチャートを作成
-    const chart = createChart(canvas, chartData);
+    const chart = createChart(element, chartData);
     this.charts.set(messageId, chart);
   },
 

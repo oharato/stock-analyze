@@ -5,6 +5,7 @@
 		"build": "pnpm -r build",
 		"deploy:mcp": "pnpm --filter stock-analyze-mcp run deploy",
 		"deploy:ai": "pnpm --filter stock-analyze-ai run deploy",
+		"deploy:web": "pnpm --filter stock-analyze-web run deploy",
 		"test": "pnpm -r test",
 		"dev": "pnpm -r dev",
 		"dev:mcp": "pnpm --filter stock-analyze-mcp dev",
