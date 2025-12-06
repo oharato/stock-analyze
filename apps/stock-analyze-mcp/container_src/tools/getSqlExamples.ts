@@ -32,14 +32,25 @@ Supported Categories:
 -- ❌ NEVER use 'FROM epoch_ms' (Syntax Error)
 -- ✅ USE date_trunc and epoch_ms directly
 SELECT 
+  c.name,
   date_trunc('week', epoch_ms(p.date)) as week_start,
-  first(p.open) as open, MAX(p.high) as high, MIN(p.low) as low, last(p.close) as close, SUM(p.volume) as volume
+  arg_min(p.open, p.date) as open, 
+  MAX(p.high) as high, 
+  MIN(p.low) as low, 
+  arg_max(p.close, p.date) as close, 
+  SUM(p.volume) as volume
 FROM stock_db.prices p
 JOIN stock_db.companies c ON CAST(p.code AS BIGINT) = CAST(c.code AS BIGINT)
-WHERE c.name LIKE '%SEARCH_TERM%' -- ⚠️ REPLACE with User's Query (Japanese)
+WHERE c.code = (
+    -- 🎯 Subquery to pick the SINGLE company with smallest code
+    SELECT code FROM stock_db.companies 
+    WHERE name LIKE '%SEARCH_TERM%' 
+    ORDER BY CAST(code AS INTEGER) ASC 
+    LIMIT 1
+  )
   AND p.date >= (EXTRACT(EPOCH FROM TIMESTAMP '2025-01-01')*1000)::BIGINT
-GROUP BY 1
-ORDER BY 1 DESC;
+GROUP BY c.name, c.code, date_trunc('week', epoch_ms(p.date))
+ORDER BY week_start DESC;
 `,
             company: `
 ### Company Search Recipe
