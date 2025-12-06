@@ -17,6 +17,7 @@
 		"wrangler": "^4.53.0"
 	},
 	"dependencies": {
-		"@modelcontextprotocol/sdk": "^1.24.3"
+		"@modelcontextprotocol/sdk": "^1.24.3",
+		"hono": "^4.10.7"
 	}
 }
