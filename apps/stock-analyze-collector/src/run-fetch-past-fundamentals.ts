@@ -1,11 +1,14 @@
+/**
+ * 2010年から昨年までの過去の財務情報を取得し、保存するバッチスクリプト
+ */
 import { LoggerService } from './services/logger.service.js';
 import { StockRepository } from './repositories/stock.repository.js';
-import { FundamentalRepository } from './repositories/fundamental_repository.js';
-import { IrbankClient } from './clients/irbank_client.js';
-import { MockIrbankClient } from './clients/mock_irbank_client.js';
-import { IIrbankClient } from './clients/irbank_client.interface.js';
-import { FetchHistoricalFundamentalsUsecase } from './usecases/fetch-historical-fundamentals.usecase.js';
-import { RawJsonRepository } from './repositories/raw_json_repository.js';
+import { FundamentalRepository } from './repositories/fundamental.repository.js';
+import { IrbankClient } from './clients/irbank.client.js';
+import { MockIrbankClient } from './clients/mock-irbank.client.js';
+import { IIrbankClient } from './clients/irbank.client.interface.js';
+import { FetchFundamentalsService } from './services/fetch-fundamentals.service.js';
+import { RawJsonRepository } from './repositories/raw-json.repository.js';
 import * as dotenv from 'dotenv';
 
 dotenv.config();
@@ -39,7 +42,7 @@ async function main() {
   const years = Array.from({ length: currentYear - 2010 + 1 }, (_, i) => 2010 + i);
   const pastYearCodes = years.map((year) => year.toString().slice(-2).padStart(4, '0'));
 
-  const usecase = new FetchHistoricalFundamentalsUsecase(
+  const service = new FetchFundamentalsService(
     irbankClient,
     stockRepository,
     fundamentalRepository,
@@ -50,7 +53,7 @@ async function main() {
   );
 
   logger.info('Starting to fetch historical fundamentals data...');
-  await usecase.execute();
+  await service.execute();
   logger.info('Finished fetching historical fundamentals data.');
 
   logger.info('--- End Batch: Successfully finished ---');

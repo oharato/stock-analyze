@@ -1,3 +1,6 @@
+/**
+ * 東証Webサイトから銘柄一覧(Excel)をダウンロードし、パースして保存するバッチスクリプト
+ */
 import { downloadStockList } from './clients/jpx.client.js';
 import { parseStockList } from './parsers/stock-list.parser.js';
 import { StockRepository } from './repositories/stock.repository.js';

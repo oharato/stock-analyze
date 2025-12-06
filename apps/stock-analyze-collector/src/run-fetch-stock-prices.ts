@@ -1,8 +1,11 @@
+/**
+ * Yahoo Financeから株価データを取得し、Parquetファイルとして保存するバッチスクリプト
+ */
 import { YahooFinanceClient } from './clients/yahoo-finance.client.js';
 import { StockRepository } from './repositories/stock.repository.js';
 import { PriceRepository } from './repositories/price.repository.js';
 import { CliArgsService } from './services/cli-args.service.js';
-import { FetchStockPricesUsecase } from './usecases/fetch-stock-prices.usecase.js';
+import { FetchStockPricesService } from './services/fetch-stock-prices.service.js';
 import { LoggerService } from './services/logger.service.js';
 
 async function main() {
@@ -12,7 +15,7 @@ async function main() {
   const priceRepository = new PriceRepository(logger);
   const cliArgsService = new CliArgsService();
 
-  const usecase = new FetchStockPricesUsecase(
+  const service = new FetchStockPricesService(
     yahooFinanceClient,
     stockRepository,
     priceRepository,
@@ -21,7 +24,7 @@ async function main() {
   );
 
   try {
-    await usecase.execute(process.argv);
+    await service.execute(process.argv);
     process.exit(0);
   } catch (error) {
     console.error('Batch process failed:');

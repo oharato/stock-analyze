@@ -1,8 +1,8 @@
-import { IIrbankClient } from './irbank_client.interface.js';
+import { IIrbankClient } from './irbank.client.interface.js';
 import { LoggerService } from '../services/logger.service.js';
 
 export class MockIrbankClient implements IIrbankClient {
-  constructor(private readonly logger: LoggerService) {}
+  constructor(private readonly logger: LoggerService) { }
 
   async fetchFinancialData(yearCode: string, fileName: string): Promise<any> {
     this.logger.info(`[MOCK] Fetching data for ${yearCode}/${fileName}`);
