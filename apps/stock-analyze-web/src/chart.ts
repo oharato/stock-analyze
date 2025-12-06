@@ -46,10 +46,27 @@ export function createChart(element: HTMLElement, chartData: ChartData): ApexCha
                 enabled: true
             }
         },
-        yaxis: {
-            tooltip: {
-                enabled: true
+        yaxis: isCandle ? [
+            {
+                seriesName: '株価',
+                tooltip: { enabled: true }
+            },
+            {
+                seriesName: '株価', // Share axis with price
+                show: false
+            },
+            {
+                seriesName: '株価', // Share axis with price
+                show: false
+            },
+            {
+                seriesName: '出来高',
+                opposite: true,
+                title: { text: '出来高' },
+                tooltip: { enabled: true }
             }
+        ] : {
+            tooltip: { enabled: true }
         },
         theme: {
             mode: 'dark'

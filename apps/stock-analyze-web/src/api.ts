@@ -21,6 +21,7 @@ export interface ChartData {
     labels?: string[]; // For line/bar/pie
     series: {          // ApexCharts structure
         name: string;
+        type?: string;
         data: number[] | { x: any; y: any }[];
     }[];
 }
@@ -98,18 +99,72 @@ function processResponse(data: any): ChatResponse {
 
             if (hasOHLC && dateKey) {
                 // ApexCharts Candlestick Format: [{ x: date, y: [open, high, low, close] }]
-                const candleData = rawRows.map((row: any) => ({
-                    x: new Date(row[dateKey!]).getTime(),
-                    y: [row.open, row.high, row.low, row.close].map(Number)
-                })).sort((a: any, b: any) => a.x - b.x);
+                const candleData = rawRows.map((row: any) => {
+                    let d = row[dateKey!];
+                    // Handle stringified epoch ms (e.g., "1735689600000")
+                    if (typeof d === 'string' && /^\d+$/.test(d) && d.length > 10) {
+                        d = Number(d);
+                    }
+                    return {
+                        x: new Date(d).getTime(),
+                        y: [row.open, row.high, row.low, row.close].map(Number)
+                    };
+                }).sort((a: any, b: any) => a.x - b.x);
+
+                // Calculate Moving Averages (Simple)
+                const closePrices = candleData.map((d: any) => d.y[3]);
+                const sma5 = closePrices.map((_, i, arr) => {
+                    if (i < 4) return null;
+                    const sum = arr.slice(i - 4, i + 1).reduce((a: number, b: number) => a + b, 0);
+                    return { x: candleData[i].x, y: sum / 5 };
+                }).filter((d: any) => d !== null);
+
+                const sma25 = closePrices.map((_, i, arr) => {
+                    if (i < 24) return null;
+                    const sum = arr.slice(i - 24, i + 1).reduce((a: number, b: number) => a + b, 0);
+                    return { x: candleData[i].x, y: sum / 25 };
+                }).filter((d: any) => d !== null);
+
+                // Volume Data
+                let volumeData: any[] = [];
+                if (rowKeys.includes('volume')) {
+                    volumeData = rawRows.map((row: any) => ({
+                        x: new Date(row[dateKey!]).getTime(),
+                        y: Number(row.volume)
+                    })).sort((a: any, b: any) => a.x - b.x);
+                }
 
                 chartData = {
-                    type: 'candlestick',
-                    series: [{
-                        name: '株価',
-                        data: candleData
-                    }]
+                    type: 'candlestick', // Base type
+                    series: [
+                        {
+                            name: '株価',
+                            type: 'candlestick',
+                            data: candleData
+                        },
+                        {
+                            name: '5日移動平均',
+                            type: 'line',
+                            data: sma5 as { x: any; y: any }[]
+                        },
+                        {
+                            name: '25日移動平均',
+                            type: 'line',
+                            data: sma25 as { x: any; y: any }[]
+                        }
+                    ]
                 };
+
+                // Create a separate series/logic for volume if needed, 
+                // but usually mixed charts handled by series type overrides.
+                // ApexCharts 'candlestick' type supports mixed line/bar/area.
+                if (volumeData.length > 0) {
+                    chartData!.series.push({
+                        name: '出来高',
+                        type: 'bar',
+                        data: volumeData
+                    });
+                }
             }
         } else {
             answer += '\n\nデータが見つかりませんでした。';

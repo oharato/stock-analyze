@@ -90,6 +90,13 @@
                 </div>
               </template>
 
+              <!-- Chart -->
+              <template x-if="message.chartData">
+                <div class="chart-container">
+                  <div :id="'chart-' + message.id"></div>
+                </div>
+              </template>
+
               <!-- Data Table -->
               <template x-if="message.tableData">
                 <div class="data-table-container">
@@ -111,13 +118,6 @@
                       </template>
                     </tbody>
                   </table>
-                </div>
-              </template>
-
-              <!-- Chart -->
-              <template x-if="message.chartData">
-                <div class="chart-container">
-                  <div :id="'chart-' + message.id"></div>
                 </div>
               </template>
 

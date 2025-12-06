@@ -60,7 +60,7 @@ SELECT p.*, c.name FROM stock_db.prices p
 JOIN stock_db.companies c ON CAST(p.code AS BIGINT) = CAST(c.code AS BIGINT) 
 WHERE c.name LIKE '%SEARCH_TERM%' -- ⚠️ REPLACE with User's Query (Japanese)
 ORDER BY p.date DESC
-LIMIT 30;
+;
 `,
             date: `
 ### Date Filtering Recipe
