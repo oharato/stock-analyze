@@ -51,7 +51,7 @@ export default {
 			// Origin/Referer がない場合（curl等）も、厳密に制限する場合は拒否する
 			// ただし、開発中の利便性を考慮して完全にブロックするかは要検討だが、
 			// ユーザーの要件「stock-analyze.ohchans.com からのリクエストに限定」に従いブロックする。
-			return new Response(JSON.stringify({ error: 'Forbidden: Request allowed only from stock-analyze.ohchans.com' }), {
+			return new Response(JSON.stringify({ error: 'アクセス拒否: リクエストは stock-analyze.ohchans.com からのみ許可されています' }), {
 				status: 403,
 				headers: { ...corsHeaders, 'Content-Type': 'application/json' },
 			});
