@@ -12,18 +12,18 @@ export interface Env {
 
 const app = new Hono<{ Bindings: Env }>();
 
-// Exact match with original logic: strict origin check
 app.use('*', async (c, next) => {
 	const appUrl = 'https://stock-analyze.ohchans.com';
 	const origin = c.req.header('Origin');
 	const referer = c.req.header('Referer');
 
-	const isProduction = (origin === appUrl) || (referer && referer.startsWith(appUrl));
-	const isLocal = (origin && origin.startsWith('http://localhost:')) || (referer && referer.startsWith('http://localhost:'));
+	// Access restriction removed for local development convenience as requested
+	// const isProduction = (origin === appUrl) || (referer && referer.startsWith(appUrl));
+	// const isLocal = (origin && origin.startsWith('http://localhost:')) || (referer && referer.startsWith('http://localhost:'));
 
-	if (!isProduction && !isLocal) {
-		return c.json({ error: 'アクセス拒否: リクエストは stock-analyze.ohchans.com からのみ許可されています' }, 403);
-	}
+	// if (!isProduction && !isLocal) {
+	//    return c.json({ error: 'アクセス拒否: リクエストは stock-analyze.ohchans.com からのみ許可されています' }, 403);
+	// }
 
 	// Hand over to Hono's CORS middleware for headers, but we've already validated permission
 	await next();
