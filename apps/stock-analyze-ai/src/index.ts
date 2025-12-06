@@ -23,12 +23,44 @@ export interface Env {
 
 export default {
 	async fetch(request, env, ctx): Promise<Response> {
-		const { question } = await request.json<{ question: string }>();
+		// CORS ヘッダー
+		const corsHeaders = {
+			'Access-Control-Allow-Origin': '*',
+			'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+			'Access-Control-Allow-Headers': 'Content-Type',
+		};
+
+		// OPTIONS リクエスト（CORS プリフライト）に対応
+		if (request.method === 'OPTIONS') {
+			return new Response(null, {
+				headers: corsHeaders,
+			});
+		}
+
+		// POST リクエストのみ処理
+		if (request.method !== 'POST') {
+			return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+				status: 405,
+				headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+			});
+		}
+
+		// リクエストボディを解析
+		let question: string;
+		try {
+			const body = await request.json<{ question: string }>();
+			question = body.question;
+		} catch (error) {
+			return new Response(JSON.stringify({ error: 'Invalid JSON in request body' }), {
+				status: 400,
+				headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+			});
+		}
 
 		if (!question) {
 			return new Response(JSON.stringify({ error: 'Missing question in request body' }), {
 				status: 400,
-				headers: { "Content-Type": "application/json" }
+				headers: { ...corsHeaders, 'Content-Type': 'application/json' },
 			});
 		}
 		const transport = new ServiceBindingTransport(env.MCP_SERVER, "/sse", "", env.MCP_PORT);
@@ -102,7 +134,7 @@ If no tool is suitable, respond with:
 			if (!aiResponse || typeof aiResponse.response !== 'string') {
 				return new Response(JSON.stringify({ error: "Invalid response from AI model" }), {
 					status: 500,
-					headers: { "Content-Type": "application/json" }
+					headers: { ...corsHeaders, "Content-Type": "application/json" }
 				});
 			}
 
@@ -117,13 +149,13 @@ If no tool is suitable, respond with:
 				console.error('Failed to parse JSON', e);
 				return new Response(JSON.stringify({ error: "AI response was not valid JSON", raw: aiResponse.response }), {
 					status: 500,
-					headers: { "Content-Type": "application/json" }
+					headers: { ...corsHeaders, "Content-Type": "application/json" }
 				});
 			}
 
 			if (toolCall.error) {
 				return new Response(JSON.stringify({ message: toolCall.error }), {
-					headers: { "Content-Type": "application/json" }
+					headers: { ...corsHeaders, "Content-Type": "application/json" }
 				});
 			}
 
@@ -144,7 +176,7 @@ If no tool is suitable, respond with:
 						tool_used: toolCall.tool,
 						data: data
 					}), {
-						headers: { "Content-Type": "application/json" }
+						headers: { ...corsHeaders, "Content-Type": "application/json" }
 					});
 				} catch {
 					return new Response(JSON.stringify({
@@ -152,19 +184,19 @@ If no tool is suitable, respond with:
 						tool_used: toolCall.tool,
 						result: content.text
 					}), {
-						headers: { "Content-Type": "application/json" }
+						headers: { ...corsHeaders, "Content-Type": "application/json" }
 					});
 				}
 			}
 
 			return new Response(JSON.stringify(result), {
-				headers: { "Content-Type": "application/json" }
+				headers: { ...corsHeaders, "Content-Type": "application/json" }
 			});
 
 		} catch (error) {
 			return new Response(JSON.stringify({ error: String(error) }), {
 				status: 500,
-				headers: { "Content-Type": "application/json" }
+				headers: { ...corsHeaders, "Content-Type": "application/json" }
 			});
 		}
 	},

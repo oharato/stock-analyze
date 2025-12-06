@@ -7,8 +7,8 @@
 export const config = {
     // 開発環境用の設定
     development: {
-        apiEndpoint: 'http://localhost:8787/api/chat',
-        useMockAPI: true, // モックAPIを使用するかどうか
+        apiEndpoint: 'http://localhost:8786',  // stock-analyze-ai のルートパス
+        useMockAPI: false, // ローカル AI サーバを使用
     },
 
     // 本番環境用の設定

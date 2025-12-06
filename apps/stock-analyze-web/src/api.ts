@@ -51,23 +51,107 @@ export async function sendChatMessage(question: string): Promise<ChatResponse> {
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ question } as ChatRequest),
+            body: JSON.stringify({ question }),
         });
 
         if (!response.ok) {
             throw new Error(`API error: ${response.status} ${response.statusText}`);
         }
 
-        const data: ChatResponse = await response.json();
+        const data = await response.json();
 
+        // デバッグ: レスポンスの構造を確認
+        console.log('[API Response]', JSON.stringify(data, null, 2));
+
+        // stock-analyze-ai のレスポンス形式を ChatResponse に変換
         if (data.error) {
-            throw new Error(data.error);
+            return {
+                answer: `エラー: ${data.error}`,
+                error: data.error,
+            };
         }
 
-        return data;
+        // データを整形
+        let answer = '';
+        let sql = '';
+        let tableData: TableData | undefined;
+        let chartData: ChartData | undefined;
+
+        if (data.tool_used === 'execute_sql' && data.data) {
+            // SQL を取得（data.data が配列の場合、最初の要素から取得を試みる）
+            sql = data.sql || '';
+
+            console.log('[SQL]', sql);
+            console.log('[Data]', data.data);
+
+            // カラム名の日本語マッピング
+            const columnMapping: Record<string, string> = {
+                'code': '銘柄コード',
+                'company_name': '会社名',
+                'datef': '日付',
+                'open': '始値',
+                'high': '高値',
+                'low': '安値',
+                'close': '終値',
+                'volume': '出来高',
+            };
+
+            // 表示するカラムの順序
+            const displayColumns = ['code', 'company_name', 'datef', 'open', 'high', 'low', 'close', 'volume'];
+
+            // data.data が配列の場合
+            if (Array.isArray(data.data) && data.data.length > 0) {
+                const rowCount = data.data.length;
+                answer = `SQL クエリを実行しました。\n\n実行結果: ${rowCount} 件のデータを取得しました。`;
+
+                // 利用可能なカラムをフィルタリング
+                const availableColumns = displayColumns.filter(col => col in data.data[0]);
+
+                // テーブルデータを作成
+                tableData = {
+                    columns: availableColumns.map(col => columnMapping[col] || col),
+                    rows: data.data.map((row: any) =>
+                        availableColumns.map((col: string) => String(row[col] ?? ''))
+                    ),
+                };
+                console.log('[TableData]', tableData);
+            }
+            // data.data が {columns, rows} 形式の場合
+            else if (data.data.columns && data.data.rows && data.data.rows.length > 0) {
+                const rowCount = data.data.rows.length;
+                answer = `SQL クエリを実行しました。\n\n実行結果: ${rowCount} 件のデータを取得しました。`;
+
+                // 利用可能なカラムをフィルタリング
+                const availableColumns = displayColumns.filter(col => data.data.columns.includes(col));
+
+                tableData = {
+                    columns: availableColumns.map(col => columnMapping[col] || col),
+                    rows: data.data.rows.map((row: any) =>
+                        availableColumns.map((col: string) => String(row[col] ?? ''))
+                    ),
+                };
+                console.log('[TableData]', tableData);
+            } else {
+                answer += '\n\nデータが見つかりませんでした。';
+            }
+        } else if (data.result) {
+            answer = data.result;
+        } else {
+            answer = JSON.stringify(data, null, 2);
+        }
+
+        return {
+            answer,
+            sql,
+            tableData,
+            chartData,
+        };
     } catch (error) {
         console.error('API call failed:', error);
-        throw error;
+        return {
+            answer: `エラーが発生しました: ${error instanceof Error ? error.message : String(error)}`,
+            error: String(error),
+        };
     }
 }
 
