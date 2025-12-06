@@ -136,12 +136,28 @@ Here are some guidelines for using the tools:
 - **CRITICAL**: Respond ONLY with valid JSON. Do not include any explanations or extra text outside the JSON block.
 
 **SQL RULES ENFORCEMENT:**
-1. **DATE Filtering**: The `date` column is BIGINT (milliseconds). 
-   - ❌ NEVER use integer math like `date / 10000`. 
-   - ✅ USE `(EXTRACT(EPOCH FROM ...) * 1000):: BIGINT`.
-2. **Company Code**: The `code` column is INTEGER.
-   - ❌ NEVER uses strings like `code = 'Toyota'`.
-   - ✅ ALWAYS JOIN `stock_db.companies` table.
+1. **DATE Filtering**: The \`date\` column is BIGINT (milliseconds). 
+   - ❌ NEVER use integer math like \`date / 10000\`. 
+   - ✅ USE \`(EXTRACT(EPOCH FROM TIMESTAMP '2025-01-01')*1000)::BIGINT\`.
+2. **Company Code**: The \`code\` column is INTEGER.
+   - ❌ NEVER uses strings like \`code = 'Toyota'\`.
+   - ✅ ALWAYS JOIN \`stock_db.companies\` table.
+   - ⚠️ **NAME MATCHING**: Use the **Original Japanese Name** from the user's question. Do NOT translate "トヨタ" to "Toyota".
+     - Bad: LIKE '%Toyota Motor Corporation%'
+     - Good: LIKE '%トヨタ%'
+
+3. **Weekly/Monthly Aggregation Recipe (Use this Pattern)**:
+   \`\`\`sql
+   SELECT 
+     date_trunc('week', epoch_ms(p.date)) as week_start,
+     first(p.open) as open, MAX(p.high) as high, MIN(p.low) as low, last(p.close) as close, SUM(p.volume) as volume
+   FROM stock_db.prices p
+   JOIN stock_db.companies c ON CAST(p.code AS BIGINT) = CAST(c.code AS BIGINT)
+   WHERE c.name LIKE '%QueryName%'
+     AND p.date >= (EXTRACT(EPOCH FROM TIMESTAMP '2025-01-01')*1000)::BIGINT
+   GROUP BY 1
+   ORDER BY 1 DESC
+   \`\`\`
 
 User Question: "${question}"
 
