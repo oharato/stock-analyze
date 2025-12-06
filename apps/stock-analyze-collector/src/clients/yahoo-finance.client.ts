@@ -1,16 +1,20 @@
-import yahooFinance from "yahoo-finance2";
+import YahooFinance from "yahoo-finance2";
 import type { HistoricalOptions } from "yahoo-finance2/modules/historical";
 import type { Quote } from "yahoo-finance2/modules/quote";
 
 export class YahooFinanceClient {
-  constructor() { }
+  private client: InstanceType<typeof YahooFinance>;
+
+  constructor() {
+    this.client = new YahooFinance();
+  }
 
   public async getHistoricalData(ticker: string, options: HistoricalOptions): Promise<any[]> {
-    return yahooFinance.historical(ticker, options);
+    return this.client.historical(ticker, options);
   }
 
   public async getQuote(ticker: string): Promise<Quote | undefined> {
-    return yahooFinance.quote(ticker);
+    return this.client.quote(ticker);
   }
 
   public async sleep(ms: number): Promise<void> {
