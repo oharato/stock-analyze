@@ -4,12 +4,14 @@ import { ToolHandler } from "./tools/types.js";
 import { ExecuteSqlTool } from "./tools/executeSql.js";
 import { GetTableSchemaTool } from "./tools/getTableSchema.js";
 import { GetDuckDbFunctionsTool } from "./tools/getDuckDbFunctions.js";
+import { GetSqlExamplesTool } from "./tools/getSqlExamples.js";
 
 export class McpService {
     private readonly tools: ToolHandler[] = [
         new ExecuteSqlTool(),
         new GetTableSchemaTool(),
         new GetDuckDbFunctionsTool(),
+        new GetSqlExamplesTool(),
     ];
 
     constructor(private readonly duckDb: DuckDBService) { }
@@ -20,9 +22,10 @@ export class McpService {
             { capabilities: { tools: {} } }
         );
 
-        // Register all tools
+        // Register all tools (Rebuild Trigger 2)
         this.tools.forEach(tool => {
             const { name, description, inputSchema } = tool.getDefinition();
+            console.log(`[McpService] Registering tool: ${name}`);
 
             server.registerTool(
                 name,

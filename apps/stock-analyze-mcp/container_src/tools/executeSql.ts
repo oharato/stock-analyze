@@ -7,52 +7,38 @@ export class ExecuteSqlTool implements ToolHandler {
   getDefinition(): ToolDefinition {
     return {
       name: "execute_sql",
-      description: `Execute SQL query against DuckDB.
-      
-Schema Information:
-- stock_db.prices: code (INT), date (BIGINT ms since epoch), open, high, low, close, adjClose, volume.
-- stock_db.companies: code (INT), name (VARCHAR), market, sector.
+      description: `Execute DuckDB SQL query.
 
-IMPORTANT Rules:
-1. Always prefix tables with 'stock_db.' (e.g., stock_db.prices).
-2. 'code' column is INTEGER. 
-   - ❌ NEVER use string like "Toyota" in 'code' column.
-   - ✅ ALWAYS JOIN 'stock_db.companies' to filter by name.
+# 📖 DOMAIN KNOWLEDGE & CRITICAL RULES
 
-3. 'date' column is BIGINT (milliseconds since epoch). 
-   - ❌ NEVER treat 'date' as YYYYMMDD integer (e.g. date / 10000).
-   - ❌ NEVER use integer math on 'date' for filtering.
-   - ✅ To filter by date: convert target date to EPOCH MS.
-   - Example (Specific Date): WHERE date >= (EXTRACT(EPOCH FROM TIMESTAMP '2025-01-01') * 1000)::BIGINT
-   - Example (Range): WHERE date BETWEEN (EXTRACT(EPOCH FROM TIMESTAMP '2025-01-01') * 1000)::BIGINT AND (EXTRACT(EPOCH FROM TIMESTAMP '2025-12-31') * 1000)::BIGINT
+## 1. Schema & Types
+- **stock_db.prices**: 
+  - \`code\` (INTEGER): Company ID. 
+  - \`date\` (BIGINT): Milliseconds since epoch.
+  - \`open\`, \`high\`, \`low\`, \`close\`, \`volume\`.
+- **stock_db.companies**:
+  - \`code\` (INTEGER): Company ID.
+  - \`name\` (VARCHAR): Company Name (Japanese).
 
-4. Company Search Pattern (REQUIRED):
-   SELECT p.*, c.name FROM stock_db.prices p
-   JOIN stock_db.companies c ON CAST(p.code AS BIGINT) = CAST(c.code AS BIGINT) 
-   WHERE c.name LIKE '%Toyota%'
-   ORDER BY p.date DESC
-   - ❌ NEVER use 'IN' subquery (e.g. WHERE code IN (SELECT...)).
-   - ❌ NEVER use 'DIV' operator.
+## 2. 🚫 STRICT PROHIBITIONS (Blacklist)
+- ❌ **NO String Comparison in 'code'**: NEVER use \`code = 'Toyota'\`.
+- ❌ **NO Integer Date Math**: NEVER use \`date / 1000\`, \`date % 10000\`, or \`DIV\` operator.
+- ❌ **NO Direct Date Functions**: NEVER use \`EXTRACT\` or \`DATE_TRUNC\` on BIGINT date. Use \`... FROM epoch_ms(date)\`.
+- ❌ **NO 'IN' Subqueries**: NEVER use \`WHERE code IN (SELECT ...)\`. use JOIN.
+- ❌ **NO Parsing Translation**: Do NOT translate Japanese query to English. Use "トヨタ" as is.
 
-4. Queries:
-   - ❌ NEVER use 'SELECT *' with 'GROUP BY'.
-   - ✅ For latest price: SELECT * ... ORDER BY date DESC LIMIT 1.
-   - ✅ For daily history: SELECT * ... ORDER BY date DESC LIMIT 30.
+## 3. ✅ MANDATORY PATTERNS (Recipes)
+> 💡 **TIP**: Unsure about the syntax? Use \`get_sql_examples\` tool to get copy-paste ready SQL!
 
-5. Aggregation (Weekly/Monthly):
-   - Use \`epoch_ms(date)\` to convert BIGINT to TIMESTAMP.
-   - ❌ NEVER use integer math (e.g. date / 1000, date DIV 604800).
-   - ✅ ALWAYS use \`date_trunc\`.
-   - Group by \`date_trunc('week', epoch_ms(date))\` or \`date_trunc('month', ...)\`.
-   - CORRECT Aggregation Pattern (Weekly):
-     SELECT 
-       date_trunc('week', epoch_ms(p.date)) as week_start,
-       first(p.open) as open, MAX(p.high) as high, MIN(p.low) as low, last(p.close) as close, SUM(p.volume) as volume
-     FROM stock_db.prices p
-     JOIN stock_db.companies c ON CAST(p.code AS BIGINT) = CAST(c.code AS BIGINT)
-     WHERE c.name LIKE '%Toyota%'
-     GROUP BY 1
-     ORDER BY 1 DESC`,
+### A. Company Filtering (ALWAYS use this JOIN)
+\`\`\`sql
+JOIN stock_db.companies c ON CAST(p.code AS BIGINT) = CAST(c.code AS BIGINT)
+WHERE c.name LIKE '%SearchTerm%'
+\`\`\`
+
+### B. Date/Aggregation
+For Weekly/Monthly aggregation or complex Date filtering, **YOU MUST** use the \`get_sql_examples\` tool with \`category='weekly'\` or \`category='date'\` to get the correct \`date_trunc\` syntax.
+`,
       inputSchema: {
         sql: z.string().describe("DuckDB SQL query to execute"),
       },

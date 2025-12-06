@@ -131,33 +131,30 @@ You are an intelligent assistant with access to the following tools:
 ${toolsDescription}
 
 Here are some guidelines for using the tools:
-- **CRITICAL**: You MUST follow the schema and rules defined in the tool descriptions above.
-- **CRITICAL**: Do NOT hallucinate column names or SQL syntax. Use ONLY what is described.
-- **CRITICAL**: Respond ONLY with valid JSON. Do not include any explanations or extra text outside the JSON block.
 
-**SQL RULES ENFORCEMENT:**
-1. **DATE Filtering**: The \`date\` column is BIGINT (milliseconds). 
-   - ❌ NEVER use integer math like \`date / 10000\`. 
-   - ✅ USE \`(EXTRACT(EPOCH FROM TIMESTAMP '2025-01-01')*1000)::BIGINT\`.
-2. **Company Code**: The \`code\` column is INTEGER.
-   - ❌ NEVER uses strings like \`code = 'Toyota'\`.
-   - ✅ ALWAYS JOIN \`stock_db.companies\` table.
-   - ⚠️ **NAME MATCHING**: Use the **Original Japanese Name** from the user's question. Do NOT translate "トヨタ" to "Toyota".
-     - Bad: LIKE '%Toyota Motor Corporation%'
-     - Good: LIKE '%トヨタ%'
+# 🛡️ CRITICAL RULES (OVERRIDE YOUR DEFAULT KNOWLEDGE)
 
-3. **Weekly/Monthly Aggregation Recipe (Use this Pattern)**:
-   \`\`\`sql
-   SELECT 
-     date_trunc('week', epoch_ms(p.date)) as week_start,
-     first(p.open) as open, MAX(p.high) as high, MIN(p.low) as low, last(p.close) as close, SUM(p.volume) as volume
-   FROM stock_db.prices p
-   JOIN stock_db.companies c ON CAST(p.code AS BIGINT) = CAST(c.code AS BIGINT)
-   WHERE c.name LIKE '%QueryName%'
-     AND p.date >= (EXTRACT(EPOCH FROM TIMESTAMP '2025-01-01')*1000)::BIGINT
-   GROUP BY 1
-   ORDER BY 1 DESC
-   \`\`\`
+## 1. 🛑 STOP & CHECK
+If the user's question involves:
+- **"Weekly" / "Monthly" / "Chart"**
+- **Date Filtering (e.g. "2025")**
+- **Company Search (e.g. "Toyota")**
+
+You **MUST** call the \`get_sql_examples\` tool FIRST to get the correct SQL recipe.
+(UNLESS you have already called it in this conversation and have the recipe).
+**DO NOT** try to write SQL from scratch for these cases.
+
+## 2. 🚫 STRICT PROHIBITIONS
+Even if you think you know SQL, you must **NEVER** do the following in this environment:
+- ❌ \`date / 1000\` or \`date + INTERVAL\` (Date is BIGINT!)
+- ❌ \`code = 'Toyota'\` (Code is INTEGER! Use JOIN)
+- ❌ \`WHERE code IN (SELECT ...)\` (Use JOIN)
+
+## 3. ✅ HOW TO SUCCEED
+1. Call \`get_sql_examples({ category: 'weekly' })\` (or 'company'/'date').
+2. Read the returned SQL recipe.
+3. Replace the placeholder (e.g. '%SearchTerm%') with the User's input (Keep Japanese!).
+4. Call \`execute_sql\` with the adapted recipe.
 
 User Question: "${question}"
 
@@ -175,112 +172,131 @@ If no tool is suitable, respond with:
 }
 `;
 
-			// 3. Call AI
-			const aiResponse = await env.AI.run('@cf/meta/llama-3-8b-instruct', {
-				prompt: prompt,
-				max_tokens: 500,
-			});
+			// 3. AI Interaction Loop
+			let currentPrompt = prompt;
+			let maxTurns = 2; // Allow at least: get_examples -> execute_sql
 
-			if (!aiResponse || typeof aiResponse.response !== 'string') {
-				return new Response(JSON.stringify({ error: "Invalid response from AI model" }), {
-					status: 500,
-					headers: { ...corsHeaders, "Content-Type": "application/json" }
+			for (let turn = 0; turn < maxTurns; turn++) {
+				console.log(`[AI] Turn ${turn + 1}/${maxTurns}`);
+
+				const aiResponse = await env.AI.run('@cf/meta/llama-3-8b-instruct', {
+					prompt: currentPrompt,
+					max_tokens: 500,
 				});
-			}
 
-			console.log('[AI Raw Output]', aiResponse.response);
+				if (!aiResponse || typeof aiResponse.response !== 'string') {
+					throw new Error("Invalid response from AI model");
+				}
 
-			// 4. Parse AI Response
-			let toolCall: any;
-			try {
-				let jsonStr = aiResponse.response.trim();
-				// マークダウンのコードブロックがあれば、その中身だけを取り出す
-				const match = jsonStr.match(/```json([\s\S]*?)```/);
-				if (match) {
-					jsonStr = match[1].trim();
-				} else {
-					// コードブロックがない場合、最初の { から 最後の } までを取り出す
-					const firstBrace = jsonStr.indexOf('{');
-					const lastBrace = jsonStr.lastIndexOf('}');
-					if (firstBrace !== -1 && lastBrace !== -1) {
-						jsonStr = jsonStr.substring(firstBrace, lastBrace + 1);
+				console.log('[AI Raw Output]', aiResponse.response);
+
+				// 4. Parse AI Response
+				let toolCall: any;
+				try {
+					let jsonStr = aiResponse.response.trim();
+					const match = jsonStr.match(/```json([\s\S]*?)```/);
+					if (match) {
+						jsonStr = match[1].trim();
+					} else {
+						const firstBrace = jsonStr.indexOf('{');
+						const lastBrace = jsonStr.lastIndexOf('}');
+						if (firstBrace !== -1 && lastBrace !== -1) {
+							jsonStr = jsonStr.substring(firstBrace, lastBrace + 1);
+						}
+					}
+					toolCall = JSON.parse(jsonStr);
+				} catch (e) {
+					console.error('Failed to parse JSON', e);
+					throw new Error("AI response was not valid JSON");
+				}
+
+				if (toolCall.error) {
+					return new Response(JSON.stringify({ message: toolCall.error }), {
+						headers: { ...corsHeaders, "Content-Type": "application/json" }
+					});
+				}
+
+				// 5. Execute Tool
+				console.log(`[MCP] Calling tool: ${toolCall.tool}`, toolCall.arguments);
+				let result: any;
+				try {
+					result = await client.callTool({
+						name: toolCall.tool,
+						arguments: toolCall.arguments
+					});
+					console.log('[MCP] Tool result:', JSON.stringify(result, null, 2));
+				} catch (error) {
+					// 省略せず詳細を返す
+					return new Response(JSON.stringify({
+						error: 'Tool execution failed',
+						details: String(error)
+					}), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+				}
+
+				const content = result.content[0];
+
+				// CASE A: execute_sql completed -> Return Data
+				if (toolCall.tool === 'execute_sql') {
+					if (content.type === 'text') {
+						try {
+							const data = JSON.parse(content.text);
+							return new Response(JSON.stringify({
+								question: question,
+								tool_used: toolCall.tool,
+								sql: toolCall.arguments.sql,
+								data: data
+							}), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+						} catch {
+							// JSONパース失敗時はテキストとして返す
+							return new Response(JSON.stringify({
+								question: question,
+								tool_used: toolCall.tool,
+								sql: toolCall.arguments.sql,
+								result: content.text
+							}), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+						}
 					}
 				}
-				toolCall = JSON.parse(jsonStr);
-			} catch (e) {
-				console.error('Failed to parse JSON', e);
-				return new Response(JSON.stringify({ error: "AI response was not valid JSON", raw: aiResponse.response }), {
-					status: 500,
-					headers: { ...corsHeaders, "Content-Type": "application/json" }
-				});
-			}
 
-			if (toolCall.error) {
-				return new Response(JSON.stringify({ message: toolCall.error }), {
-					headers: { ...corsHeaders, "Content-Type": "application/json" }
-				});
-			}
+				// CASE B: get_sql_examples completed -> Force Next Step with Fresh Prompt
+				if (toolCall.tool === 'get_sql_examples') {
+					const recipe = content.type === 'text' ? content.text : JSON.stringify(content);
 
-			// 5. Execute Tool
-			console.log(`[MCP] Calling tool: ${toolCall.tool}`, toolCall.arguments);
+					// 履歴を積むのではなく、新しい強力なプロンプトで上書きする
+					currentPrompt = `
+You are a SQL Expert.
+You have received a mandatory SQL recipe.
 
-			let result: any;
-			try {
-				result = await client.callTool({
-					name: toolCall.tool,
-					arguments: toolCall.arguments
-				});
-				console.log('[MCP] Tool result:', JSON.stringify(result, null, 2));
-			} catch (error) {
-				console.error('[MCP] Tool execution failed:', error);
-				return new Response(JSON.stringify({
-					error: 'Tool execution failed',
-					details: String(error)
-				}), {
-					status: 500,
-					headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-				});
-			}
+# RECIPE:
+${recipe}
 
-			// 6. Return Result with metadata
-			if (!result || !result.content || !Array.isArray(result.content) || result.content.length === 0) {
-				console.error('[MCP] Invalid result structure:', result);
-				return new Response(JSON.stringify({
-					error: 'Invalid result from MCP server',
-					result: result
-				}), {
-					status: 500,
-					headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-				});
-			}
+# INSTRUCTION:
+1. Use the recipe above EXACTLY.
+2. Replace '%SEARCH_TERM%' with the Company Name from the query: "${question}"
+   - Example: "ラクーンの株価" -> Search term: "ラクーン"
+   - Example: "トヨタ自動車について" -> Search term: "トヨタ"
+3. **IMPORTANT**: Write the SQL as a SINGLE LINE string (no newlines) to avoid JSON errors.
+4. Call the \`execute_sql\` tool.
 
-			const content = result.content[0];
-			if (content.type === 'text') {
-				try {
-					const data = JSON.parse(content.text);
-					return new Response(JSON.stringify({
-						question: question,
-						tool_used: toolCall.tool,
-						sql: toolCall.arguments.sql,  // SQL を追加
-						data: data
-					}), {
-						headers: { ...corsHeaders, "Content-Type": "application/json" }
-					});
-				} catch {
-					return new Response(JSON.stringify({
-						question: question,
-						tool_used: toolCall.tool,
-						sql: toolCall.arguments.sql,  // SQL を追加
-						result: content.text
-					}), {
-						headers: { ...corsHeaders, "Content-Type": "application/json" }
-					});
+Response Format:
+{
+  "tool": "execute_sql",
+  "arguments": {
+    "sql": "SELECT ... (one line) ..."
+  }
+}
+`;
+					console.log('[AI] Forced Next Prompt:', currentPrompt);
+					continue; // Loop again with the new FORCED prompt
 				}
+
+				// CASE C: Unknown tool or other -> Return raw result
+				return new Response(JSON.stringify(result), {
+					headers: { ...corsHeaders, "Content-Type": "application/json" }
+				});
 			}
 
-			return new Response(JSON.stringify(result), {
-				headers: { ...corsHeaders, "Content-Type": "application/json" }
-			});
+			throw new Error("Max turns exceeded without final result");
 
 		} catch (error) {
 			return new Response(JSON.stringify({ error: String(error) }), {
