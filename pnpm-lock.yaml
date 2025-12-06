@@ -35,6 +35,9 @@ importers:
       '@aws-sdk/client-s3':
         specifier: ^3.927.0
         version: 3.946.0
+      '@duckdb/node-api':
+        specifier: 1.4.2-r.1
+        version: 1.4.2-r.1
       axios:
         specifier: ^1.13.1
         version: 1.13.2
