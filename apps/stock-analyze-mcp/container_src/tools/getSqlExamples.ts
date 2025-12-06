@@ -29,7 +29,8 @@ Supported Categories:
             weekly: `
 ### Weekly/Monthly Aggregation Recipe
 -- ❌ NEVER use 'DIV' or integer math on date
--- ✅ USE date_trunc and epoch_ms
+-- ❌ NEVER use 'FROM epoch_ms' (Syntax Error)
+-- ✅ USE date_trunc and epoch_ms directly
 SELECT 
   date_trunc('week', epoch_ms(p.date)) as week_start,
   first(p.open) as open, MAX(p.high) as high, MIN(p.low) as low, last(p.close) as close, SUM(p.volume) as volume

@@ -140,7 +140,7 @@ export default {
 			const toolsList = await client.listTools();
 			const tools = toolsList.tools;
 
-			// 2. Construct Prompt
+			// 2. プロンプトの構築
 			const toolsDescription = tools.map(t =>
 				`- ${t.name}: ${t.description}\n  Schema: ${JSON.stringify(t.inputSchema)}`
 			).join('\n');
@@ -169,6 +169,7 @@ Even if you think you know SQL, you must **NEVER** do the following in this envi
 - ❌ \`date / 1000\` or \`date + INTERVAL\` (Date is BIGINT!)
 - ❌ \`code = 'Toyota'\` (Code is INTEGER! Use JOIN)
 - ❌ \`WHERE code IN (SELECT ...)\` (Use JOIN)
+- ❌ \`FROM epoch_ms(...)\` (Syntax Error! Use \`epoch_ms(...)\` directly)
 
 ## 3. ✅ HOW TO SUCCEED
 1. Call \`get_sql_examples({ category: 'weekly' })\` (or 'company'/'date').

@@ -107,7 +107,7 @@ body::before {
 /* Header Styles */
 .header {
   text-align: center;
-  margin-bottom: var(--spacing-2xl);
+  /* margin-bottom: var(--spacing-2xl); */
   padding: var(--spacing-xl) 0;
 }
 
