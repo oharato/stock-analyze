@@ -52,15 +52,7 @@ describe('YahooFinanceClient', () => {
     expect(result).toEqual(dummyQuoteData);
   });
 
-  it('should sleep for the specified duration', async () => {
-    const sleepTime = 100; // ms
-    const start = Date.now();
-    await client.sleep(sleepTime);
-    const end = Date.now();
 
-    expect(end - start).toBeGreaterThanOrEqual(sleepTime);
-    expect(end - start).toBeLessThan(sleepTime + 50); // 許容範囲
-  });
 
   it('should handle errors during historical data fetch', async () => {
     const errorMessage = 'Failed to fetch historical data';

@@ -26,11 +26,10 @@ async function main() {
   if (useMock) {
     logger.info('Using MockIrbankClient');
     irbankClient = new MockIrbankClient(logger);
-    sleepDuration = 0; // 0 seconds for mock
   } else {
     logger.info('Using IrbankClient');
-    irbankClient = new IrbankClient(logger);
-    sleepDuration = 300000; // 5 minutes (300 seconds) for real API
+    // Default 5 minutes (300 seconds) for real API
+    irbankClient = new IrbankClient(logger, { minIntervalMs: 300000 });
   }
 
   const stockRepository = new StockRepository(logger);
@@ -48,7 +47,6 @@ async function main() {
     fundamentalRepository,
     rawJsonRepository,
     logger,
-    sleepDuration,
     pastYearCodes.reverse(), // 最新から取得するために逆順にする
   );
 

@@ -44,7 +44,6 @@ export class FetchFundamentalsService {
         private readonly fundamentalRepository: FundamentalRepository,
         private readonly rawJsonRepository: RawJsonRepository,
         private readonly logger: LoggerService,
-        private readonly sleepDuration: number = 10000, // デフォルトは10秒
         private readonly yearCodes: string[],
     ) { }
 
@@ -155,8 +154,6 @@ export class FetchFundamentalsService {
                         }
                         allData.set(key, dataWithMeta);
                     }
-
-                    await sleep(this.sleepDuration); // レートリミット
                 }
             }
         } catch (error) {

@@ -10,7 +10,8 @@ import { LoggerService } from './services/logger.service.js';
 
 async function main() {
   const logger = new LoggerService();
-  const yahooFinanceClient = new YahooFinanceClient();
+  // 2 seconds delay
+  const yahooFinanceClient = new YahooFinanceClient({ minIntervalMs: 2000 }, logger);
   const stockRepository = new StockRepository(logger);
   const priceRepository = new PriceRepository(logger);
   const cliArgsService = new CliArgsService();

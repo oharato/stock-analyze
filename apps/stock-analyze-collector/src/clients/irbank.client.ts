@@ -1,11 +1,21 @@
 import axios from 'axios';
 import { LoggerService } from '../services/logger.service.js';
 import { IIrbankClient } from './irbank.client.interface.js';
+import { RateLimiter, RateLimiterConfig } from '../utils/rate-limiter.js';
 
 export class IrbankClient implements IIrbankClient {
-  constructor(private readonly logger: LoggerService) { }
+  private rateLimiter: RateLimiter;
+
+  constructor(
+    private readonly logger: LoggerService,
+    config: RateLimiterConfig = { minIntervalMs: 10000 } // Default 10s
+  ) {
+    this.rateLimiter = new RateLimiter(config, logger);
+  }
 
   async fetchFinancialData(yearCode: string, fileName: string): Promise<any> {
+    await this.rateLimiter.waitIfNeeded();
+
     const url = this.buildUrl(yearCode, fileName);
     this.logger.info(`Fetching data from ${url}`, { yearCode, fileName });
 
@@ -23,12 +33,13 @@ export class IrbankClient implements IIrbankClient {
 
   private async executeRequest(url: string) {
     const headers = {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
+      'User-Agent':
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
     };
     return await axios.get(url, {
       headers,
       maxRedirects: 0, // リダイレクトを検出するために無効化
-      validateStatus: (status) => status < 400 // 3xxもエラーとして扱う
+      validateStatus: (status) => status < 400, // 3xxもエラーとして扱う
     });
   }
 
@@ -58,7 +69,9 @@ export class IrbankClient implements IIrbankClient {
       this.throwRateLimitError(url, 302, error.response.headers.location);
     }
 
-    this.logger.error(`Error fetching data from ${url}`, { error: error instanceof Error ? error.stack : String(error) });
+    this.logger.error(`Error fetching data from ${url}`, {
+      error: error instanceof Error ? error.stack : String(error),
+    });
     return null;
   }
 
@@ -67,7 +80,7 @@ export class IrbankClient implements IIrbankClient {
     this.logger.error('RATE LIMIT ERROR: 302 redirect detected. Stopping batch immediately.', {
       url,
       status,
-      location
+      location,
     });
     throw error;
   }

@@ -41,7 +41,6 @@ describe('FetchStockPricesService', () => {
         mockYahooFinanceClient = {
             getHistoricalData: vi.fn().mockResolvedValue(dummyHistoricalData),
             getQuote: vi.fn().mockResolvedValue(dummyQuote),
-            sleep: vi.fn().mockResolvedValue(undefined),
         } as unknown as Mocked<YahooFinanceClient>;
 
         mockStockRepository = {
@@ -91,7 +90,7 @@ describe('FetchStockPricesService', () => {
         expect(mockYahooFinanceClient.getQuote).toHaveBeenCalledTimes(11); // 全11銘柄
         expect(mockYahooFinanceClient.getHistoricalData).toHaveBeenCalledTimes(11);
         expect(mockPriceRepository.writeMonthParquetFile).toHaveBeenCalled(); // 少なくとも1回は呼ばれる
-        expect(mockYahooFinanceClient.sleep).toHaveBeenCalledTimes(11);
+
     });
 
     it('should process specified stocks when --codes is provided', async () => {
@@ -104,7 +103,7 @@ describe('FetchStockPricesService', () => {
         expect(mockYahooFinanceClient.getQuote).toHaveBeenCalledTimes(2); // 指定された2銘柄
         expect(mockYahooFinanceClient.getHistoricalData).toHaveBeenCalledTimes(2);
         expect(mockPriceRepository.writeMonthParquetFile).toHaveBeenCalled();
-        expect(mockYahooFinanceClient.sleep).toHaveBeenCalledTimes(2);
+
     });
 
     it('should fetch data for a specified period in manual mode', async () => {

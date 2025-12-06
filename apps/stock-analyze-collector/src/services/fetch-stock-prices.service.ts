@@ -33,8 +33,6 @@ export class FetchStockPricesService {
                 }
             } catch (err: any) {
                 this.logger.warn(`  -> Could not process data for ${ticker}. Skipping. Error: ${err.message}`);
-            } finally {
-                await this.yahooFinanceClient.sleep(2000);
             }
         }
 
