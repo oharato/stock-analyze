@@ -37,7 +37,7 @@ app.use('*', cors({
 	allowHeaders: ['Content-Type'],
 }));
 
-app.post('/', async (c) => {
+app.post('*', async (c) => {
 	let body: { question?: string; sql?: string };
 	try {
 		body = await c.req.json();
