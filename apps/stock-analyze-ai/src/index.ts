@@ -23,9 +23,18 @@ export interface Env {
 
 export default {
 	async fetch(request, env, ctx): Promise<Response> {
+		const origin = request.headers.get('Origin');
+		const referer = request.headers.get('Referer');
+
+		const allowedOrigins = ['https://stock-analyze.ohchans.com'];
+		const isProduction = allowedOrigins.includes(origin || '') || (referer && allowedOrigins.some(o => referer.startsWith(o)));
+		const isLocal = (origin && origin.startsWith('http://localhost:')) || (referer && referer.startsWith('http://localhost:'));
+
+		const isAllowed = isProduction || isLocal;
+
 		// CORS ヘッダー
 		const corsHeaders = {
-			'Access-Control-Allow-Origin': '*',
+			'Access-Control-Allow-Origin': isAllowed ? (origin || 'https://stock-analyze.ohchans.com') : 'https://stock-analyze.ohchans.com',
 			'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
 			'Access-Control-Allow-Headers': 'Content-Type',
 		};
@@ -34,6 +43,17 @@ export default {
 		if (request.method === 'OPTIONS') {
 			return new Response(null, {
 				headers: corsHeaders,
+			});
+		}
+
+		// 許可されていないオリジンからのリクエストを拒否
+		if (!isAllowed) {
+			// Origin/Referer がない場合（curl等）も、厳密に制限する場合は拒否する
+			// ただし、開発中の利便性を考慮して完全にブロックするかは要検討だが、
+			// ユーザーの要件「stock-analyze.ohchans.com からのリクエストに限定」に従いブロックする。
+			return new Response(JSON.stringify({ error: 'Forbidden: Request allowed only from stock-analyze.ohchans.com' }), {
+				status: 403,
+				headers: { ...corsHeaders, 'Content-Type': 'application/json' },
 			});
 		}
 

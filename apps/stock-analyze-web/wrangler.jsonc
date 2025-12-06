@@ -4,6 +4,12 @@
     "assets": {
         "directory": "./dist"
     },
+    "routes": [
+        {
+            "pattern": "stock-analyze.ohchans.com/*",
+            "zone_name": "ohchans.com"
+        }
+    ],
     "observability": {
         "enabled": true
     }

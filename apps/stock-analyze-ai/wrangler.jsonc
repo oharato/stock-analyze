@@ -13,6 +13,12 @@
 	"ai": {
 		"binding": "AI"
 	},
+	"routes": [
+		{
+			"pattern": "stock-analyze.ohchans.com/api*",
+			"zone_name": "ohchans.com"
+		}
+	],
 	/**
 	 * Smart Placement
 	 * Docs: https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement
