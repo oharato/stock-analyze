@@ -75,7 +75,7 @@
             <div class="message-avatar" x-text="message.role === 'user' ? '👤' : '🤖'"></div>
             <div class="message-content">
               <!-- Message Text -->
-              <div class="message-text" x-html="message.content.replace(/\n/g, '<br>')"></div>
+              <div class="message-text" x-html="(message.content || '').replace(/\n/g, '<br>')"></div>
 
               <!-- SQL Display -->
               <template x-if="message.sql">

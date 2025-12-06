@@ -45,11 +45,15 @@ export default {
 			});
 		}
 
+
 		// リクエストボディを解析
-		let question: string;
+		let question: string | undefined;
+		let sql: string | undefined;
+
 		try {
-			const body = await request.json<{ question: string }>();
+			const body = await request.json<{ question?: string; sql?: string }>();
 			question = body.question;
+			sql = body.sql;
 		} catch (error) {
 			return new Response(JSON.stringify({ error: 'Invalid JSON in request body' }), {
 				status: 400,
@@ -57,18 +61,61 @@ export default {
 			});
 		}
 
-		if (!question) {
-			return new Response(JSON.stringify({ error: 'Missing question in request body' }), {
+		if (!question && !sql) {
+			return new Response(JSON.stringify({ error: 'Missing question or sql in request body' }), {
 				status: 400,
 				headers: { ...corsHeaders, 'Content-Type': 'application/json' },
 			});
 		}
+
 		const transport = new ServiceBindingTransport(env.MCP_SERVER, "/sse", "", env.MCP_PORT);
 		const client = new Client({ name: "worker-client", version: "1.0.0" }, { capabilities: {} });
 
 		try {
 			await client.connect(transport);
 
+			// SQL が直接指定された場合（SQL モード）
+			if (sql) {
+				console.log('[Direct SQL]', sql);
+				const toolCall = {
+					tool: 'execute_sql',
+					arguments: { sql },
+				};
+
+				// ツール実行
+				let result: any;
+				try {
+					result = await client.callTool({
+						name: toolCall.tool,
+						arguments: toolCall.arguments
+					});
+				} catch (error) {
+					// 省略: エラーハンドリング（下流で共通化しても良いが、ここではシンプルに返す）
+					return new Response(JSON.stringify({ error: String(error) }), {
+						status: 500,
+						headers: { ...corsHeaders, "Content-Type": "application/json" }
+					});
+				}
+
+				// 結果の整形
+				const content = result.content[0];
+				let data = null;
+				if (content.type === 'text') {
+					try {
+						data = JSON.parse(content.text);
+					} catch { }
+				}
+
+				return new Response(JSON.stringify({
+					tool_used: 'execute_sql',
+					sql: sql,
+					data: data || result
+				}), {
+					headers: { ...corsHeaders, "Content-Type": "application/json" }
+				});
+			}
+
+			// 以下、質問 (question) がある場合の AI 処理
 			// Example: List tools available on the MCP server
 			const toolsList = await client.listTools();
 			const tools = toolsList.tools;
@@ -84,35 +131,22 @@ You are an intelligent assistant with access to the following tools:
 ${toolsDescription}
 
 Here are some guidelines for using the tools:
-- **Schema Information**:
-  - \`stock_db.prices\`: \`code\` (INTEGER), \`date\` (BIGINT, ms since epoch), \`open\` (INTEGER/FLOAT), \`high\`, \`low\`, \`close\`, \`adjClose\`, \`volume\` (INTEGER).
-  - \`stock_db.companies\`: \`code\` (INTEGER), \`name\` (VARCHAR), \`market\` (VARCHAR), \`sector\` (VARCHAR).
-  - \`stock_db.fundamentals\`: \`code\` (INTEGER), \`date\` (BIGINT), \`revenue\`, \`profit\`, etc.
-- **DO NOT** use \`get_table_schema\`. Use the schema information provided above.
-- Use \`get_duckdb_functions\` to see available DuckDB functions, date formatting tips, and schema details. Use this if you need to write complex SQL involving dates (e.g. "last month").
-- **IMPORTANT**: When using \`execute_sql\`, you **MUST** prefix all table names with \`stock_db.\`. For example, use \`stock_db.prices\`, \`stock_db.fundamentals\`, \`stock_db.companies\`. Do NOT use \`prices\` directly.
+- **CRITICAL**: You MUST follow the schema and rules defined in the tool descriptions above.
+- **CRITICAL**: Do NOT hallucinate column names or SQL syntax. Use ONLY what is described.
+- **CRITICAL**: Respond ONLY with valid JSON. Do not include any explanations or extra text outside the JSON block.
 
-- **CRITICAL (Company Name Search)**: 
-  - The \`prices\` table only has a \`code\` column (INTEGER), NOT a company name.
-  - To search by company name, you **MUST** use LIKE search with wildcards: \`WHERE c.name LIKE '%CompanyName%'\`
-  - **NEVER** use exact match (\`WHERE c.name = 'CompanyName'\`) as it will fail for partial names.
-  - **ALWAYS JOIN** with \`stock_db.companies\` when filtering by company name.
-  - **ALWAYS SELECT company name** (\`c.name\`) in your query so users know which company the data is for.
-  - Examples:
-    * "ラクーン" → \`WHERE c.name LIKE '%ラクーン%'\`
-    * "トヨタ" → \`WHERE c.name LIKE '%トヨタ%'\`
-    * "Apple" → \`WHERE c.name LIKE '%Apple%'\`
-  - Full query example: \`SELECT p.*, c.name as company_name FROM stock_db.prices p JOIN stock_db.companies c ON p.code = c.code WHERE c.name LIKE '%ラクーン%' ORDER BY p.date DESC LIMIT 1\`
-
-- **IMPORTANT (Dates)**: The \`prices\` table has a \`date\` column which is BIGINT (milliseconds).
-  - To compare with dates, use \`epoch_ms(date)::DATE\`.
-  - Use \`current_date\` for "now" or "today". **DO NOT** use \`datetime('now')\`.
-  - Example (Last 1 month): \`WHERE epoch_ms(date)::DATE >= current_date - INTERVAL 1 MONTH\`
-- Always prioritize using the provided tools to answer the user's question completely.
+**SQL RULES ENFORCEMENT:**
+1. **DATE Filtering**: The `date` column is BIGINT (milliseconds). 
+   - ❌ NEVER use integer math like `date / 10000`. 
+   - ✅ USE `(EXTRACT(EPOCH FROM ...) * 1000):: BIGINT`.
+2. **Company Code**: The `code` column is INTEGER.
+   - ❌ NEVER uses strings like `code = 'Toyota'`.
+   - ✅ ALWAYS JOIN `stock_db.companies` table.
 
 User Question: "${question}"
 
 Decide which tool to use to answer the question.
+If the question is about stock prices, execute_sql is usually the best tool.
 Respond ONLY with a JSON object in the following format:
 {
   "tool": "tool_name",
@@ -143,7 +177,19 @@ If no tool is suitable, respond with:
 			// 4. Parse AI Response
 			let toolCall: any;
 			try {
-				const jsonStr = aiResponse.response.replace(/```json/g, '').replace(/```/g, '').trim();
+				let jsonStr = aiResponse.response.trim();
+				// マークダウンのコードブロックがあれば、その中身だけを取り出す
+				const match = jsonStr.match(/```json([\s\S]*?)```/);
+				if (match) {
+					jsonStr = match[1].trim();
+				} else {
+					// コードブロックがない場合、最初の { から 最後の } までを取り出す
+					const firstBrace = jsonStr.indexOf('{');
+					const lastBrace = jsonStr.lastIndexOf('}');
+					if (firstBrace !== -1 && lastBrace !== -1) {
+						jsonStr = jsonStr.substring(firstBrace, lastBrace + 1);
+					}
+				}
 				toolCall = JSON.parse(jsonStr);
 			} catch (e) {
 				console.error('Failed to parse JSON', e);
@@ -161,12 +207,37 @@ If no tool is suitable, respond with:
 
 			// 5. Execute Tool
 			console.log(`[MCP] Calling tool: ${toolCall.tool}`, toolCall.arguments);
-			const result = await client.callTool({
-				name: toolCall.tool,
-				arguments: toolCall.arguments
-			}) as any;
+
+			let result: any;
+			try {
+				result = await client.callTool({
+					name: toolCall.tool,
+					arguments: toolCall.arguments
+				});
+				console.log('[MCP] Tool result:', JSON.stringify(result, null, 2));
+			} catch (error) {
+				console.error('[MCP] Tool execution failed:', error);
+				return new Response(JSON.stringify({
+					error: 'Tool execution failed',
+					details: String(error)
+				}), {
+					status: 500,
+					headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+				});
+			}
 
 			// 6. Return Result with metadata
+			if (!result || !result.content || !Array.isArray(result.content) || result.content.length === 0) {
+				console.error('[MCP] Invalid result structure:', result);
+				return new Response(JSON.stringify({
+					error: 'Invalid result from MCP server',
+					result: result
+				}), {
+					status: 500,
+					headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+				});
+			}
+
 			const content = result.content[0];
 			if (content.type === 'text') {
 				try {
@@ -174,6 +245,7 @@ If no tool is suitable, respond with:
 					return new Response(JSON.stringify({
 						question: question,
 						tool_used: toolCall.tool,
+						sql: toolCall.arguments.sql,  // SQL を追加
 						data: data
 					}), {
 						headers: { ...corsHeaders, "Content-Type": "application/json" }
@@ -182,6 +254,7 @@ If no tool is suitable, respond with:
 					return new Response(JSON.stringify({
 						question: question,
 						tool_used: toolCall.tool,
+						sql: toolCall.arguments.sql,  // SQL を追加
 						result: content.text
 					}), {
 						headers: { ...corsHeaders, "Content-Type": "application/json" }

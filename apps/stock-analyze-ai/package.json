@@ -3,6 +3,7 @@
 	"version": "0.0.0",
 	"private": true,
 	"scripts": {
+		"build": "tsc",
 		"deploy": "wrangler deploy",
 		"dev": "wrangler dev --port 8786 --inspector-port 9230",
 		"start": "wrangler dev",

@@ -7,6 +7,9 @@
 		"deploy:ai": "pnpm --filter stock-analyze-ai run deploy",
 		"test": "pnpm -r test",
 		"dev": "pnpm -r dev",
+		"dev:mcp": "pnpm --filter stock-analyze-mcp dev",
+		"dev:ai": "pnpm --filter stock-analyze-ai dev",
+		"dev:web": "pnpm --filter stock-analyze-web dev",
 		"cf-typegen": "pnpm -r cf-typegen"
 	},
 	"packageManager": "pnpm@10.23.0"
