@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="AI-powered stock analysis assistant for intelligent market insights" />
+  <meta name="keywords" content="stock analysis, AI, market insights, financial data, SQL" />
+  <title>Stock Analysis AI - Intelligent Market Assistant</title>
+</head>
+
+<body>
+  <div id="app">
+    <header class="header">
+      <h1>📈 Stock Analysis AI</h1>
+      <p>Your intelligent assistant for market insights and stock analysis</p>
+    </header>
+
+    <div class="glass-card chat-container" x-data="chatApp">
+      <!-- Mode Toggle -->
+      <div class="mode-toggle">
+        <button class="mode-btn" :class="{ 'active': mode === 'chat' }" @click="switchMode('chat')">
+          💬 チャットモード
+        </button>
+        <button class="mode-btn" :class="{ 'active': mode === 'sql' }" @click="switchMode('sql')">
+          🔍 SQL モード
+        </button>
+        <button class="btn-icon clear-btn" @click="clearHistory()" title="履歴をクリア" :disabled="messages.length === 0">
+          🗑️
+        </button>
+      </div>
+
+      <!-- Messages Area -->
+      <div class="messages-area" x-ref="messagesArea">
+        <!-- Empty State -->
+        <div class="empty-state" x-show="messages.length === 0">
+          <div class="empty-state-icon">💬</div>
+          <h3>Start a conversation</h3>
+          <p x-show="mode === 'chat'">Ask me anything about stocks, market trends, or financial data analysis</p>
+          <p x-show="mode === 'sql'">Execute custom SQL queries to analyze stock data</p>
+
+          <div class="suggestions" x-show="mode === 'chat'">
+            <div class="suggestion-card" @click="sendSuggestion('最近のトヨタ自動車の株価動向を教えてください')">
+              <h4>📊 株価動向</h4>
+              <p>最近のトヨタ自動車の株価動向を教えてください</p>
+            </div>
+            <div class="suggestion-card" @click="sendSuggestion('日経平均株価の過去1ヶ月のトレンドは？')">
+              <h4>📈 市場トレンド</h4>
+              <p>日経平均株価の過去1ヶ月のトレンドは？</p>
+            </div>
+            <div class="suggestion-card" @click="sendSuggestion('テクノロジーセクターで注目すべき銘柄は？')">
+              <h4>🔍 銘柄分析</h4>
+              <p>テクノロジーセクターで注目すべき銘柄は？</p>
+            </div>
+          </div>
+
+          <div class="suggestions" x-show="mode === 'sql'">
+            <div class="suggestion-card"
+              @click="sendSuggestion('SELECT * FROM stock_prices ORDER BY date DESC LIMIT 10')">
+              <h4>📋 最新データ</h4>
+              <p>最新の株価データを取得</p>
+            </div>
+            <div class="suggestion-card"
+              @click="sendSuggestion('SELECT symbol, AVG(close_price) as avg_price FROM stock_prices GROUP BY symbol')">
+              <h4>📊 平均株価</h4>
+              <p>銘柄別の平均株価を計算</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Messages -->
+        <template x-for="message in messages" :key="message.id">
+          <div class="message" :class="message.role">
+            <div class="message-avatar" x-text="message.role === 'user' ? '👤' : '🤖'"></div>
+            <div class="message-content">
+              <!-- Message Text -->
+              <div class="message-text" x-html="message.content.replace(/\n/g, '<br>')"></div>
+
+              <!-- SQL Display -->
+              <template x-if="message.sql">
+                <div class="sql-display">
+                  <div class="sql-header">
+                    <span class="sql-label">実行された SQL</span>
+                    <button class="sql-copy-btn" @click="copySQLToInput(message.sql)" title="SQL エディタにコピー">
+                      📝 編集
+                    </button>
+                  </div>
+                  <div class="sql-code" x-text="message.sql"></div>
+                </div>
+              </template>
+
+              <!-- Data Table -->
+              <template x-if="message.tableData">
+                <div class="data-table-container">
+                  <table class="data-table">
+                    <thead>
+                      <tr>
+                        <template x-for="column in message.tableData.columns" :key="column">
+                          <th x-text="column"></th>
+                        </template>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <template x-for="(row, rowIndex) in message.tableData.rows" :key="rowIndex">
+                        <tr>
+                          <template x-for="(cell, cellIndex) in row" :key="cellIndex">
+                            <td x-text="cell"></td>
+                          </template>
+                        </tr>
+                      </template>
+                    </tbody>
+                  </table>
+                </div>
+              </template>
+
+              <!-- Chart -->
+              <template x-if="message.chartData">
+                <div class="chart-container">
+                  <canvas :id="'chart-' + message.id"></canvas>
+                </div>
+              </template>
+
+              <div class="message-time" x-text="message.time"></div>
+            </div>
+          </div>
+        </template>
+
+        <!-- Loading Indicator -->
+        <div class="message assistant" x-show="isLoading">
+          <div class="message-avatar">🤖</div>
+          <div class="message-content">
+            <div class="loading-indicator">
+              <div class="loading-dot"></div>
+              <div class="loading-dot"></div>
+              <div class="loading-dot"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Input Area -->
+      <div class="input-area">
+        <textarea class="input-field" x-model="inputText" @keydown.enter.prevent="handleEnter"
+          :placeholder="mode === 'chat' ? '株式や市場について質問してください...' : 'SQL クエリを入力してください...'" rows="1"
+          x-ref="input"></textarea>
+        <button class="btn btn-primary" @click="sendMessage" :disabled="!inputText.trim() || isLoading">
+          <span x-show="!isLoading" x-text="mode === 'chat' ? '送信' : '実行'"></span>
+          <span x-show="isLoading">...</span>
+        </button>
+      </div>
+    </div>
+  </div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+
+</html>
