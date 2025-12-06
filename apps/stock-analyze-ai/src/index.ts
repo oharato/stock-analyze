@@ -12,6 +12,7 @@
  */
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { ServiceBindingTransport } from "./ServiceBindingTransport";
+import { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 
 export interface Env {
 	// If you set another name in the Wrangler config file as the value for 'binding',
@@ -103,12 +104,12 @@ export default {
 				};
 
 				// ツール実行
-				let result: any;
+				let result: CallToolResult;
 				try {
-					result = await client.callTool({
+					result = (await client.callTool({
 						name: toolCall.tool,
 						arguments: toolCall.arguments
-					});
+					})) as CallToolResult;
 				} catch (error) {
 					// 省略: エラーハンドリング（下流で共通化しても良いが、ここではシンプルに返す）
 					return new Response(JSON.stringify({ error: String(error) }), {
@@ -170,6 +171,7 @@ Even if you think you know SQL, you must **NEVER** do the following in this envi
 - ❌ \`code = 'Toyota'\` (Code is INTEGER! Use JOIN)
 - ❌ \`WHERE code IN (SELECT ...)\` (Use JOIN)
 - ❌ \`FROM epoch_ms(...)\` (Syntax Error! Use \`epoch_ms(...)\` directly)
+- ❌ \`epoch_ms('2025-01-01')\` (Error! You MUST cast to TIMESTAMP: \`epoch_ms('2025-01-01'::TIMESTAMP)\`)
 
 ## 3. ✅ HOW TO SUCCEED
 1. Call \`get_sql_examples({ category: 'weekly' })\` (or 'company'/'date').
@@ -200,10 +202,10 @@ If no tool is suitable, respond with:
 			for (let turn = 0; turn < maxTurns; turn++) {
 				console.log(`[AI] Turn ${turn + 1}/${maxTurns}`);
 
-				const aiResponse = await env.AI.run('@cf/meta/llama-3-8b-instruct', {
+				const aiResponse = await env.AI.run('@cf/meta/llama-3.1-70b-instruct' as keyof AiModels, {
 					prompt: currentPrompt,
-					max_tokens: 500,
-				});
+					max_tokens: 1000,
+				}) as { response: string };
 
 				if (!aiResponse || typeof aiResponse.response !== 'string') {
 					throw new Error("Invalid response from AI model");
@@ -212,7 +214,7 @@ If no tool is suitable, respond with:
 				console.log('[AI Raw Output]', aiResponse.response);
 
 				// 4. Parse AI Response
-				let toolCall: any;
+				let toolCall: { tool?: string; arguments?: Record<string, unknown>; error?: string };
 				try {
 					let jsonStr = aiResponse.response.trim();
 					const match = jsonStr.match(/```json([\s\S]*?)```/);
@@ -237,14 +239,18 @@ If no tool is suitable, respond with:
 					});
 				}
 
+				if (!toolCall.tool || !toolCall.arguments) {
+					throw new Error("AI response missing 'tool' or 'arguments'");
+				}
+
 				// 5. Execute Tool
 				console.log(`[MCP] Calling tool: ${toolCall.tool}`, toolCall.arguments);
-				let result: any;
+				let result: CallToolResult;
 				try {
-					result = await client.callTool({
+					result = (await client.callTool({
 						name: toolCall.tool,
 						arguments: toolCall.arguments
-					});
+					})) as CallToolResult;
 					console.log('[MCP] Tool result:', JSON.stringify(result, null, 2));
 				} catch (error) {
 					// 省略せず詳細を返す

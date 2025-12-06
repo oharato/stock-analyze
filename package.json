@@ -3,7 +3,7 @@
 	"private": true,
 	"scripts": {
 		"build": "pnpm -r build",
-		"deploy": "pnpm -r run deploy",
+		"deploy": "pnpm deploy:mcp && pnpm deploy:ai && pnpm deploy:web",
 		"deploy:mcp": "pnpm --filter stock-analyze-mcp run deploy",
 		"deploy:ai": "pnpm --filter stock-analyze-ai run deploy",
 		"deploy:web": "pnpm --filter stock-analyze-web run deploy",
