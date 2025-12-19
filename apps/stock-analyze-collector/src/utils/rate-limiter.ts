@@ -1,4 +1,4 @@
-import { LoggerService } from './services/logger.service.js';
+import { LoggerService } from '../services/logger.service.js';
 
 export interface RateLimiterConfig {
     minIntervalMs: number;

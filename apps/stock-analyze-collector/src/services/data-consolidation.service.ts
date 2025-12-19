@@ -35,6 +35,7 @@ export class DataConsolidationService {
             await this.consolidateStockList();
             await this.consolidatePrices();
             await this.consolidateFundamentals();
+            await this.consolidateEdinet();
         } finally {
             // 接続のクローズ処理があればここで行う（現状node-apiは明示的なcloseが必須ではない場合もあるが、実装依存）
         }
@@ -105,5 +106,43 @@ export class DataConsolidationService {
 
         await this.conn!.run(query);
         this.logger.info('Companies table created.');
+    }
+
+    /**
+     * EDINETデータを統合します
+     */
+    private async consolidateEdinet(): Promise<void> {
+        this.logger.info('Consolidating edinet table...');
+        const edinetDir = path.join(this.dataDir, 'raw/edinet');
+        // EDINETデータは raw/edinet 配下に保存される想定
+        // ファイル名やディレクトリ構造に依存するが、ここでは一旦すべてのJSONを読み込む
+        // 必要に応じてファイル名のパターンなどを調整する
+        const edinetPathQuery = path.join(edinetDir, '**/*.json');
+
+        // read_json_auto で読み込み、filename=true でファイルパスも取得
+        // ファイルパスからコードなどを抽出するロジックは保存時の命名規則に依存する
+        // ここでは仮に filename からコードを抽出する例を示す (保存時のファイル名が code を含む場合)
+        // もし edinet-ts get の保存ファイル名が ticker を含まない場合は、ディレクトリ構造から抽出する必要があるかもしれない
+
+        // edinet-ts のデフォルト保存ファイル名は {ticker}-{date}-{type}-{docId}.json のような形式か、
+        // あるいはディレクトリ分けされているか確認が必要だが、
+        // 以下のクエリは汎用的にJSONを読み込むものとする。
+
+        const query = `
+      CREATE OR REPLACE TABLE edinet AS 
+      SELECT 
+        *,
+        regexp_extract(filename, '([0-9]{4})', 1) as code,
+        filename
+      FROM read_json_auto('${edinetPathQuery}', filename=true);
+    `;
+
+        try {
+            await this.conn!.run(query);
+            this.logger.info('Edinet table created.');
+        } catch (e: any) {
+            // ファイルがない場合などはエラーになるので警告に留める
+            this.logger.warn(`Failed to create edinet table (maybe no files found): ${e.message}`);
+        }
     }
 }
