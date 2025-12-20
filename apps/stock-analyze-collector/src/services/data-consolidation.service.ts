@@ -1,5 +1,6 @@
 import { DuckDBInstance, DuckDBConnection } from '@duckdb/node-api';
 import * as path from 'path';
+import * as fs from 'fs/promises';
 import { LoggerService } from './logger.service.js';
 
 export class DataConsolidationService {
@@ -33,7 +34,7 @@ export class DataConsolidationService {
 
         try {
             await this.consolidateStockList();
-            // await this.consolidatePrices();
+            await this.consolidatePrices();
             // await this.consolidateFundamentals();
             await this.consolidateEdinet();
         } finally {
@@ -46,34 +47,143 @@ export class DataConsolidationService {
      * 日次更新を考慮し、全てのParquetファイルを読み込んでコード・日付順にソートしてテーブルを再作成します。
      * (差分更新よりも、クエリパフォーマンス("Sort by Code, Date")を優先し、常に最適な並び順を維持するため再作成を選択)
      */
+    /**
+     * 株価データを統合します (増分処理対応)
+     */
     private async consolidatePrices(): Promise<void> {
         this.logger.info('Consolidating prices table...');
         const processedDir = path.join(this.dataDir, 'processed');
-        const pricesPathQuery = path.join(processedDir, 'prices/**/*.parquet');
+        const pricesDir = path.join(processedDir, 'prices');
 
-        // datef: date(timestamp) -> DATE型
-        // code: filenameから抽出
-        // ORDER BY code, datef: クエリパフォーマンス向上のためソート
-        const query = `
-      CREATE OR REPLACE TABLE prices AS
-      SELECT 
-        *, 
-        cast(to_timestamp(date/1000) as date) as datef, 
-        regexp_extract(filename, 'code=([0-9]+)', 1) AS code 
-      FROM read_parquet('${pricesPathQuery}', filename=true)
-      ORDER BY code, datef;
-    `;
+        // 1. Create consolidation_state table if not exists
+        await this.conn!.run(`
+            CREATE TABLE IF NOT EXISTS consolidation_state (
+                category VARCHAR,
+                key VARCHAR,
+                updated_at TIMESTAMP,
+                PRIMARY KEY (category, key)
+            );
+        `);
 
-        await this.conn!.run(query);
-        this.logger.info('Prices table created and sorted by code and date.');
+        // 2. Load processed codes to resume
+
+        const result = await this.conn!.run(`
+            SELECT key FROM consolidation_state WHERE category = 'prices';
+        `);
+        const processedCodes = new Set<string>();
+
+        // Get all stock codes from directory names
+
+
+        // ディレクトリ一覧から全コードを取得
+        let dirs: string[] = [];
+        try {
+            const entries = await fs.readdir(pricesDir, { withFileTypes: true });
+            dirs = entries
+                .filter(dirent => dirent.isDirectory() && dirent.name.startsWith('code='))
+                .map(dirent => dirent.name);
+        } catch (error) {
+            this.logger.warn('Prices directory not found or empty.');
+            return;
+        }
+
+        this.logger.info(`Found ${dirs.length} stock directories.`);
+
+        // バッチサイズ
+        const BATCH_SIZE = 50;
+        let processedCount = 0;
+        const totalCount = dirs.length;
+
+        // Get processed codes from DB
+
+
+        // @duckdb/node-api の streamReader を使って結果を取得する。
+        const reader = await this.conn!.runAndRead(`SELECT key FROM consolidation_state WHERE category = 'prices'`);
+        const rows = await reader.getRows();
+        for (const row of rows) {
+            // row is [(string)], assuming key is the first column
+            processedCodes.add(String(row[0]));
+        }
+
+        const pendingCodes = dirs.filter(dir => {
+            const code = dir.replace('code=', '');
+            return !processedCodes.has(code);
+        });
+
+        this.logger.info(`Pending codes: ${pendingCodes.length}/${totalCount}`);
+
+        if (pendingCodes.length === 0) {
+            this.logger.info('All prices already consolidated.');
+            return;
+        }
+
+        // chunks に分割
+        for (let i = 0; i < pendingCodes.length; i += BATCH_SIZE) {
+            const chunk = pendingCodes.slice(i, i + BATCH_SIZE);
+            const chunkCodes = chunk.map(dir => dir.replace('code=', ''));
+
+            // Construct query
+
+            const fileGlobs = chunk.map(dir => path.join(pricesDir, dir, '**/*.parquet'));
+            const fileListStr = fileGlobs.map(g => `'${g}'`).join(', ');
+
+            // Check if table exists to decide between CREATE and INSERT
+
+            let tableExists = false;
+            try {
+                await this.conn!.run('SELECT 1 FROM prices LIMIT 1');
+                tableExists = true;
+            } catch (e) {
+                tableExists = false;
+            }
+
+            // クエリ生成
+            const selectClause = `
+                SELECT 
+                    *, 
+                    cast(to_timestamp(date/1000) as date) as datef, 
+                    regexp_extract(filename, 'code=([0-9]+)', 1) AS code 
+                FROM read_parquet([${fileListStr}], filename=true)
+            `;
+
+            let query = '';
+            if (!tableExists) {
+                // Create table if not exists (sort by code, datef)
+                query = `CREATE TABLE prices AS ${selectClause} ORDER BY code, datef`;
+            } else {
+                query = `INSERT INTO prices ${selectClause}`;
+            }
+
+            try {
+                await this.conn!.run(query);
+
+                // Update state and checkpoint
+                const values = chunkCodes.map(c => `('prices', '${c}', current_timestamp)`).join(', ');
+                await this.conn!.run(`INSERT OR IGNORE INTO consolidation_state VALUES ${values}`);
+                await this.conn!.run('CHECKPOINT');
+
+                processedCount += chunk.length;
+                this.logger.info(`Processed ${processedCount}/${pendingCodes.length} (Total progress: ${processedCodes.size + processedCount}/${totalCount})`);
+
+            } catch (error: any) {
+                this.logger.error('Error processing batch', { error: error.message });
+                throw error;
+            }
+        }
+
+        this.logger.info('Prices table consolidation completed.');
     }
 
+    /**
+     * 財務データを統合します
+     */
     /**
      * 財務データを統合します
      */
     private async consolidateFundamentals(): Promise<void> {
         this.logger.info('Consolidating fundamentals table...');
         const processedDir = path.join(this.dataDir, 'processed');
+        // NOTE: fundamentalsも同様に増分処理が可能だが、データ量がpricesほどではないと想定し、今回は現状維持とする
         const fundamentalsPathQuery = path.join(processedDir, 'fundamentals/**/*.parquet');
 
         // try-catchでファイルが存在しない場合をハンドリングすることも可能だが、
