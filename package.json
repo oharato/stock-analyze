@@ -13,6 +13,10 @@
 		"dev:ai": "pnpm --filter stock-analyze-ai dev",
 		"dev:web": "pnpm --filter stock-analyze-web dev",
 		"dev:minio": "docker compose up -d",
+		"run:fetch-stock-list": "pnpm --filter stock-analyze-collector run:fetch-stock-list",
+		"run:fetch-stock-prices": "pnpm --filter stock-analyze-collector run:fetch-stock-prices",
+		"run:fetch-past-fundamentals": "pnpm --filter stock-analyze-collector run:fetch-past-fundamentals",
+		"run:fetch-latest-fundamentals": "pnpm --filter stock-analyze-collector run:fetch-latest-fundamentals",
 		"run:seed-edinet": "pnpm --filter stock-analyze-collector run:seed-edinet",
 		"run:consolidate-data": "pnpm --filter stock-analyze-collector run:consolidate-data",
 		"test": "pnpm -r test"
