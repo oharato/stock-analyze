@@ -251,17 +251,17 @@ export class DataConsolidationService {
                 research_and_development,
                 research_and_development_vector,
 
-                -- Quantitative
-                net_sales,
-                operating_income,
-                ordinary_income,
-                net_income,
-                net_assets,
-                total_assets,
-                earnings_per_share,
-                book_value_per_share,
-                equity_to_total_assets_ratio,
-                rate_of_return_on_equity,
+                -- Quantitative (using camelCase from JSON)
+                netSales as net_sales,
+                operatingIncome as operating_income,
+                ordinaryIncome as ordinary_income,
+                netIncome as net_income,
+                netAssets as net_assets,
+                totalAssets as total_assets,
+                earningsPerShare as earnings_per_share,
+                bookValuePerShare as book_value_per_share,
+                equityToTotalAssetsRatio as equity_to_total_assets_ratio,
+                rateOfReturnOnEquity as rate_of_return_on_equity,
 
                 filename
             FROM read_json_auto('${edinetPathQuery}', filename=true);
