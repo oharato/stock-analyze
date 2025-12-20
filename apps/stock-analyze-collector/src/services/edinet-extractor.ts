@@ -39,24 +39,48 @@ export class EdinetExtractor {
         this.extractor = extractor;
     }
 
-    async process(ticker: string, doc: any, xbrlData: any): Promise<EdinetDataWithVectors> {
+    async process(ticker: string, doc: any, xbrlData: any, xbrlText?: string): Promise<EdinetDataWithVectors> {
         const getVal = (obj: any, key: string) => obj && obj[key] ? obj[key] : undefined;
 
+        // Helper to find value in dataMap if available
+        const getFromMap = (keyPart: string) => {
+            if (!xbrlData || !xbrlData.dataMap) return undefined;
+            const keys = Object.keys(xbrlData.dataMap);
+            const foundKey = keys.find(k => k.toLowerCase().includes(keyPart.toLowerCase()));
+            if (!foundKey) return undefined;
+            const item = xbrlData.dataMap[foundKey];
+            // item might be { value: "...", ... } or just "..."
+            return (item && typeof item === 'object' && item.value) ? item.value : item;
+        };
+
+        // Fallback Regex Extraction (if parser failed or key missing)
+        const extractByRegex = (tagPart: string, contextRef: string = 'CurrentYearDuration') => {
+            if (!xbrlText) return undefined;
+            // Look for <(prefix):TagName ... contextRef="CurrentYearDuration" ... >Value</...>
+            // TagName should match tagPart (case independent?)
+            // A simplified regex: <[^:]+:[^>]*tagPart[^>]*contextRef="contextRef"[^>]*>([^<]+)<
+            const regex = new RegExp(`<[^:]+:[^>]*${tagPart}[^>]*contextRef="${contextRef}"[^>]*>([^<]+)<`, 'i');
+            const match = xbrlText.match(regex);
+            return match ? match[1] : undefined;
+        };
+
         // Text Keys
-        const businessRisksKey = Object.keys(xbrlData).find(k => k.includes('BusinessRisks'));
-        const mdaKey = Object.keys(xbrlData).find(k => k.includes('ManagementAnalysis') || k.includes('OperatingResults'));
-        const governanceKey = Object.keys(xbrlData).find(k => k.includes('CorporateGovernance'));
-        const rdKey = Object.keys(xbrlData).find(k => k.includes('ResearchAndDevelopment'));
+        let businessRisks = getFromMap('BusinessRisks');
+        let mda = getFromMap('ManagementAnalysis') || getFromMap('OperatingResults');
+        let governance = getFromMap('CorporateGovernance');
+        let rd = getFromMap('ResearchAndDevelopment');
+
+        // Text Regex Fallback (optional)
 
         const cleanText = (text: any) => {
-            if (typeof text !== 'string') return '';
+            if (!text || typeof text !== 'string') return '';
             return text.replace(/<[^>]*>?/gm, '').replace(/\s+/g, ' ').trim();
         };
 
-        const cleanRisks = cleanText(getVal(xbrlData, businessRisksKey || ''));
-        const cleanMda = cleanText(getVal(xbrlData, mdaKey || ''));
-        const cleanGovernance = cleanText(getVal(xbrlData, governanceKey || ''));
-        const cleanRd = cleanText(getVal(xbrlData, rdKey || ''));
+        const cleanRisks = cleanText(businessRisks);
+        const cleanMda = cleanText(mda);
+        const cleanGovernance = cleanText(governance);
+        const cleanRd = cleanText(rd);
 
         this.logger.info(`Extracted Risks: ${cleanRisks.length}, MDA: ${cleanMda.length}, Gov: ${cleanGovernance.length}, R&D: ${cleanRd.length} chars`);
 
@@ -80,30 +104,49 @@ export class EdinetExtractor {
         // Quantitative Extraction (Key Metrics)
         const toNum = (val: any) => {
             if (val === undefined || val === null || val === '') return undefined;
+            if (typeof val === 'string') {
+                val = val.replace(/,/g, ''); // Remove commas
+            }
             const n = Number(val);
             return isNaN(n) ? undefined : n;
         };
 
         const findNum = (keys: string[]): number | undefined => {
+            // 1. Try xbrlData (flat or Map)
             for (const k of keys) {
-                const foundKey = Object.keys(xbrlData).find(xk => xk.toLowerCase().includes(k.toLowerCase()));
-                if (foundKey && (xbrlData as any)[foundKey] !== undefined) {
-                    return toNum((xbrlData as any)[foundKey]);
+                // Try flat property first (if parser worked that way)
+                if ((xbrlData as any)[k] !== undefined) return toNum((xbrlData as any)[k]);
+
+                // Try dataMap
+                const mapVal = getFromMap(k);
+                if (mapVal !== undefined) return toNum(mapVal);
+            }
+
+            // 2. Try Regex Fallback if xbrlText provided
+            if (xbrlText) {
+                for (const k of keys) {
+                    const regexVal = extractByRegex(k, 'CurrentYearDuration');
+                    if (regexVal) return toNum(regexVal);
+
+                    // Try NonConsolidated if Consolidated missing?
+                    const regexValNonCon = extractByRegex(k, 'CurrentYearDuration_NonConsolidatedMember');
+                    if (regexValNonCon) return toNum(regexValNonCon);
                 }
             }
+
             return undefined;
         };
 
-        const netSales = toNum((xbrlData as any).netSales) ?? findNum(['NetSales', 'OperatingRevenue']);
-        const operatingIncome = toNum((xbrlData as any).operatingIncome) ?? findNum(['OperatingIncome', 'OperatingProfit']);
-        const ordinaryIncome = toNum((xbrlData as any).ordinaryIncome) ?? findNum(['OrdinaryIncome', 'OrdinaryProfit']);
-        const netIncome = toNum((xbrlData as any).netIncome) ?? findNum(['NetIncome', 'ProfitLossAttributableToOwners']);
-        const netAssets = toNum((xbrlData as any).netAssets) ?? findNum(['NetAssets', 'TotalNetAssets']);
-        const totalAssets = toNum((xbrlData as any).totalAssets) ?? findNum(['TotalAssets']);
-        const earningsPerShare = toNum((xbrlData as any).earningsPerShare) ?? findNum(['BasicEarningsLossPerShare']);
-        const bookValuePerShare = toNum((xbrlData as any).bookValuePerShare) ?? findNum(['NetAssetsPerShare']);
-        const equityToTotalAssetsRatio = toNum((xbrlData as any).equityToTotalAssetsRatio) ?? findNum(['EquityToAssetRatio']);
-        const rateOfReturnOnEquity = toNum((xbrlData as any).rateOfReturnOnEquity) ?? findNum(['RateOfReturnOnEquity']);
+        const netSales = findNum(['NetSales', 'OperatingRevenue']);
+        const operatingIncome = findNum(['OperatingIncome', 'OperatingProfit']);
+        const ordinaryIncome = findNum(['OrdinaryIncome', 'OrdinaryProfit']);
+        const netIncome = findNum(['NetIncome', 'ProfitLossAttributableToOwners']);
+        const netAssets = findNum(['NetAssets', 'TotalNetAssets']);
+        const totalAssets = findNum(['TotalAssets']);
+        const earningsPerShare = findNum(['BasicEarningsLossPerShare']);
+        const bookValuePerShare = findNum(['NetAssetsPerShare']);
+        const equityToTotalAssetsRatio = findNum(['EquityToAssetRatio']);
+        const rateOfReturnOnEquity = findNum(['RateOfReturnOnEquity']);
 
         return {
             ticker,
