@@ -51,8 +51,8 @@ importers:
         specifier: ^17.2.3
         version: 17.2.3
       edinet-ts:
-        specifier: ^1.1.8
-        version: 1.1.8
+        specifier: ^1.1.10
+        version: 1.1.10
       parquetjs:
         specifier: ^0.11.2
         version: 0.11.2
@@ -2034,8 +2034,8 @@ packages:
     resolution: {integrity: sha512-KIN/nDJBQRcXw0MLVhZE9iQHmG68qAVIBg9CqmUYjmQIhgij9U5MFvrqkUL5FbtyyzZuOeOt0zdeRe4UY7ct+A==}
     engines: {node: '>= 0.4'}
 
-  edinet-ts@1.1.8:
-    resolution: {integrity: sha512-G0wOr/qEdf8RN4fa0s6grq025/ZGlhUfJI8ml9CaTXF5eRIP9WFG2irtNLdVahORp0quxK9gegaxG9vagKw1YA==}
+  edinet-ts@1.1.10:
+    resolution: {integrity: sha512-XZfuczNwk7KJtM1wh+xOVj3A8pj16vlpWvSHYkOp6K7TT6tO5P4lNPb/cyiJ920JNW859+UWUO9+k6HxQoKUYQ==}
     hasBin: true
 
   ee-first@1.1.1:
@@ -4986,7 +4986,7 @@ snapshots:
       es-errors: 1.3.0
       gopd: 1.2.0
 
-  edinet-ts@1.1.8:
+  edinet-ts@1.1.10:
     dependencies:
       better-sqlite3: 12.5.0
       cli-progress: 3.12.0

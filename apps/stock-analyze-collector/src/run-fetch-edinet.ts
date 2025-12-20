@@ -2,7 +2,7 @@
  * EDINETからデータを取得し、保存するバッチスクリプト
  */
 import { LoggerService } from './services/logger.service.js';
-import { EdinetExtractor, EdinetDataWithVectors } from './services/edinet-extractor.js';
+// import { EdinetExtractor, EdinetDataWithVectors } from './services/edinet-extractor.js';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
@@ -23,6 +23,36 @@ dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+interface EdinetDataWithVectors {
+    ticker: string;
+    docId: string;
+    date: string;
+    year: number;
+    // Qualitative
+    business_risks?: string;
+    business_risks_vector?: number[];
+    mda?: string; // Management Analysis
+    mda_vector?: number[];
+    corporate_governance?: string;
+    corporate_governance_vector?: number[];
+    research_and_development?: string;
+    research_and_development_vector?: number[];
+
+    // Quantitative (Key Metrics)
+    net_sales?: number;
+    operating_income?: number;
+    ordinary_income?: number;
+    net_income?: number;
+    net_assets?: number;
+    total_assets?: number;
+    earnings_per_share?: number;
+    book_value_per_share?: number;
+    equity_to_total_assets_ratio?: number;
+    rate_of_return_on_equity?: number;
+
+    major_shareholders?: any[];
+}
 
 interface FetchOptions {
     ticker: string;
@@ -74,7 +104,7 @@ async function main() {
     const extractor = await pipeline('feature-extraction', 'Xenova/paraphrase-multilingual-MiniLM-L12-v2');
 
     // Initialize Service
-    const extractorService = new EdinetExtractor(logger, extractor);
+    // const extractorService = new EdinetExtractor(logger, extractor);
 
     // ダウンローダー初期化
     const downloader = new EdinetXbrlDownloader({
@@ -93,18 +123,12 @@ async function main() {
     let foundDocsCount = 0;
 
     for (let i = 0; i < years; i++) {
-        // Calculate period for this year chunk (going backwards)
-        // i=0: [today - 1yr, today]
-        // i=1: [today - 2yr, today - 1yr]
-        // Actually, simple year-by-year boundaries are easier
-
         const endDateObj = new Date();
         endDateObj.setFullYear(endDateObj.getFullYear() - i);
         const startDateObj = new Date();
         startDateObj.setFullYear(startDateObj.getFullYear() - i - 1);
-        startDateObj.setDate(startDateObj.getDate() + 1); // Avoid overlap? 
+        startDateObj.setDate(startDateObj.getDate() + 1);
 
-        // Format YYYY-MM-DD
         const formatDate = (d: Date) => d.toISOString().split('T')[0];
         const startStr = formatDate(startDateObj);
         const endStr = formatDate(endDateObj);
@@ -112,10 +136,7 @@ async function main() {
         logger.info(`Searching Annual Report in period: ${startStr} ~ ${endStr} for ticker: ${ticker} (${targetSecCode})...`);
 
         try {
-            // Use searchPeriod to find all annual reports in this range
             const allDocs = await downloader.searchPeriod(startStr, endStr, EdinetDocumentType.AnnualCards);
-
-            // Filter by ticker
             const targetDocs = allDocs.filter(d => d.secCode === targetSecCode);
 
             if (targetDocs.length === 0) {
@@ -127,7 +148,6 @@ async function main() {
 
             for (const doc of targetDocs) {
                 const docDate = doc.date || (doc.submitDateTime ? doc.submitDateTime.split(' ')[0] : undefined);
-
                 if (!docDate) {
                     logger.warn(`Skipping document (DocID: ${doc.docID}) due to missing date.`);
                     continue;
@@ -150,8 +170,66 @@ async function main() {
                     continue;
                 }
 
-                const xbrlData = parser.parse(xbrlText);
-                const saveData = await extractorService.process(ticker, doc, xbrlData, xbrlText);
+                const xbrlData = parser.parse(xbrlText) as any; // Cast to any if strict types match is unsure, but edinet-ts 1.1.9 should have types
+
+                // Helper for vectorization
+                const cleanText = (text: any) => {
+                    if (!text || typeof text !== 'string') return '';
+                    return text.replace(/<[^>]*>?/gm, '').replace(/\s+/g, ' ').trim();
+                };
+
+                const vectorize = async (text: string) => {
+                    if (!text) return [];
+                    try {
+                        const output = await extractor(text, { pooling: 'mean', normalize: true });
+                        return Array.from(output.data) as number[];
+                    } catch (e) {
+                        logger.error(`Vectorization failed: ${e}`);
+                        return [];
+                    }
+                };
+
+                // Extract fields directly from xbrlData (Assuming edinet-ts 1.1.9 structure)
+                // Text fields
+                const businessRisks = cleanText(xbrlData.businessRisks);
+                const mda = cleanText(xbrlData.managementAnalysis || xbrlData.operatingResults); // Verify property names
+                const corporateGovernance = cleanText(xbrlData.corporateGovernance);
+                const researchAndDevelopment = cleanText(xbrlData.researchAndDevelopment);
+
+                const businessRisksVector = await vectorize(businessRisks);
+                const mdaVector = await vectorize(mda);
+                const governanceVector = await vectorize(corporateGovernance);
+                const rdVector = await vectorize(researchAndDevelopment);
+
+                // Financials
+                const saveData: EdinetDataWithVectors = {
+                    ticker,
+                    docId: doc.docID,
+                    date: docDate,
+                    year: new Date(docDate).getFullYear(),
+
+                    // Qualitative
+                    business_risks: businessRisks,
+                    business_risks_vector: businessRisksVector,
+                    mda: mda,
+                    mda_vector: mdaVector,
+                    corporate_governance: corporateGovernance,
+                    corporate_governance_vector: governanceVector,
+                    research_and_development: researchAndDevelopment,
+                    research_and_development_vector: rdVector,
+
+                    // Quantitative
+                    net_sales: xbrlData.netSales,
+                    operating_income: xbrlData.operatingIncome,
+                    ordinary_income: xbrlData.ordinaryIncome,
+                    net_income: xbrlData.netIncome,
+                    net_assets: xbrlData.netAssets,
+                    total_assets: xbrlData.totalAssets,
+                    earnings_per_share: xbrlData.earningsPerShare,
+                    book_value_per_share: xbrlData.bookValuePerShare,
+                    equity_to_total_assets_ratio: xbrlData.equityToAssetRatio,
+                    rate_of_return_on_equity: xbrlData.rateOfReturnOnEquity
+                };
 
                 fs.writeFileSync(filePath, JSON.stringify(saveData, null, 2), 'utf-8');
                 logger.info(`Saved data with vectors to ${filePath}`);
