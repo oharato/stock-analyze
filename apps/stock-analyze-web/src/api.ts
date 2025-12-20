@@ -248,6 +248,72 @@ export async function sendSQLQuery(sql: string): Promise<ChatResponse> {
 }
 
 /**
+ * EDINET API Calls
+ */
+
+export async function fetchEdinetList(ticker: string): Promise<TableData | null> {
+    try {
+        const response = await fetch(`${API_ENDPOINT}/edinet/list`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ ticker }),
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const json = await response.json();
+        const data = json.data;
+
+        // Mcp tool implementation returns JSON string in content[0].text
+        // Our backend parses it. If DuckDB query returns array of objects:
+        if (Array.isArray(data) && data.length > 0) {
+            const columns = Object.keys(data[0]);
+            const rows = data.map((item: any) => columns.map(col => item[col]));
+            return { columns, rows };
+        } else if (Array.isArray(data)) {
+            return { columns: [], rows: [] };
+        }
+
+        return null;
+
+    } catch (error) {
+        console.error('fetchEdinetList failed:', error);
+        throw error;
+    }
+}
+
+export async function fetchEdinetDetail(docId: string): Promise<TableData | null> {
+    try {
+        const response = await fetch(`${API_ENDPOINT}/edinet/detail`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ doc_id: docId }),
+        });
+
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+        const json = await response.json();
+        const data = json.data;
+
+        if (Array.isArray(data) && data.length > 0) {
+            const columns = Object.keys(data[0]);
+            const rows = data.map((item: any) => columns.map(col => item[col]));
+            return { columns, rows };
+        }
+        // If getting single object (not array) for detail? 
+        // DuckDB query `SELECT * FROM ... WHERE doc_id = ...` returns array of 1 object usually.
+        return null;
+    } catch (error) {
+        console.error('fetchEdinetDetail failed:', error);
+        throw error;
+    }
+}
+
+/**
  * モック API コール（開発用）
  */
 async function mockAPICall(question: string): Promise<ChatResponse> {

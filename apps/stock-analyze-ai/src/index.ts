@@ -37,6 +37,56 @@ app.use('*', cors({
 	allowHeaders: ['Content-Type'],
 }));
 
+// EDINET API: List
+app.post('/api/edinet/list', async (c) => {
+	try {
+		const body = await c.req.json<{ ticker: string }>();
+		if (!body.ticker) return c.json({ error: 'Missing ticker' }, 400);
+
+		const client = await createMcpClient(c.env);
+		const result = (await client.callTool({
+			name: 'get_edinet_list',
+			arguments: { ticker: body.ticker },
+		})) as CallToolResult;
+
+		const content = result.content[0];
+		let data = null;
+		if (content.type === 'text') {
+			try { data = JSON.parse(content.text); } catch { }
+		}
+
+		return c.json({ data: data || result });
+	} catch (e: any) {
+		console.error('EDINET List Error:', e);
+		return c.json({ error: String(e) }, 500);
+	}
+});
+
+// EDINET API: Detail
+app.post('/api/edinet/detail', async (c) => {
+	try {
+		const body = await c.req.json<{ doc_id: string }>();
+		if (!body.doc_id) return c.json({ error: 'Missing doc_id' }, 400);
+
+		const client = await createMcpClient(c.env);
+		const result = (await client.callTool({
+			name: 'get_edinet_detail',
+			arguments: { doc_id: body.doc_id },
+		})) as CallToolResult;
+
+		const content = result.content[0];
+		let data = null;
+		if (content.type === 'text') {
+			try { data = JSON.parse(content.text); } catch { }
+		}
+
+		return c.json({ data: data || result });
+	} catch (e: any) {
+		console.error('EDINET Detail Error:', e);
+		return c.json({ error: String(e) }, 500);
+	}
+});
+
 app.post('*', async (c) => {
 	let body: { question?: string; sql?: string };
 	try {
@@ -95,6 +145,17 @@ app.post('*', async (c) => {
 			error: 'Internal Server Error',
 			details: String(e)
 		}, 500);
+	}
+});
+
+// Debug: List APIs
+app.get('/api/tools', async (c) => {
+	try {
+		const client = await createMcpClient(c.env);
+		const tools = await client.listTools();
+		return c.json(tools);
+	} catch (e: any) {
+		return c.json({ error: String(e) }, 500);
 	}
 });
 

@@ -46,7 +46,7 @@ async function main() {
     RCLONE_CONFIG_R2_PROVIDER: 'Cloudflare',
     RCLONE_CONFIG_R2_ACCESS_KEY_ID: accessKeyId,
     RCLONE_CONFIG_R2_SECRET_ACCESS_KEY: secretAccessKey,
-    RCLONE_CONFIG_R2_ENDPOINT: `https://${accountId}.r2.cloudflarestorage.com`,
+    RCLONE_CONFIG_R2_ENDPOINT: process.env.R2_ENDPOINT || `https://${accountId}.r2.cloudflarestorage.com`,
     RCLONE_CONFIG_R2_REGION: 'auto',
   };
 

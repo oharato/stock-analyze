@@ -7,7 +7,7 @@
 export const config = {
     // 開発環境用の設定
     development: {
-        apiEndpoint: 'http://localhost:8786',  // stock-analyze-ai のルートパス
+        apiEndpoint: 'http://localhost:8786/api',  // stock-analyze-ai のルートパス
         useMockAPI: false, // ローカル AI サーバを使用
     },
 

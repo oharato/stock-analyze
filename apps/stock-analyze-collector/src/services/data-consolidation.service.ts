@@ -33,8 +33,8 @@ export class DataConsolidationService {
 
         try {
             await this.consolidateStockList();
-            await this.consolidatePrices();
-            await this.consolidateFundamentals();
+            // await this.consolidatePrices();
+            // await this.consolidateFundamentals();
             await this.consolidateEdinet();
         } finally {
             // 接続のクローズ処理があればここで行う（現状node-apiは明示的なcloseが必須ではない場合もあるが、実装依存）

@@ -36,6 +36,7 @@ export class DuckDBService {
                     try {
                         console.log(`[DuckDB] Attaching local: ${env.LOCAL_DUCKDB_PATH}`);
                         await this.conn.run(`ATTACH '${env.LOCAL_DUCKDB_PATH}' AS stock_db (READ_ONLY);`);
+                        await this.conn.run('USE stock_db;');
                         console.log('[DuckDB] Local attached');
                     } catch (err) {
                         console.error('[DuckDB] Local attach failed:', err);
@@ -84,6 +85,8 @@ export class DuckDBService {
             const r2Endpoint = endpoint?.replace(/^https?:\/\//, '')
                 || `${accountId}.r2.cloudflarestorage.com`;
 
+            const useSsl = endpoint?.startsWith('http://') ? 'false' : 'true';
+
             await this.conn.run(`
                 CREATE SECRET r2_secret (
                     TYPE S3,
@@ -92,12 +95,13 @@ export class DuckDBService {
                     REGION 'auto',
                     ENDPOINT '${escapeSql(r2Endpoint)}',
                     URL_STYLE 'path',
-                    USE_SSL true
+                    USE_SSL ${useSsl}
                 );
             `);
 
             // Attach database from R2
             await this.conn.run(`ATTACH 's3://${bucket}/stock.duckdb' AS stock_db (READ_ONLY);`);
+            await this.conn.run('USE stock_db;');
             console.log('[DuckDB] R2 attached');
         } catch (error) {
             console.error('[DuckDB] R2 setup failed:', error);
