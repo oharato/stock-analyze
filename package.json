@@ -3,21 +3,23 @@
 	"private": true,
 	"scripts": {
 		"build": "pnpm -r build",
+		"cf-typegen": "pnpm -r cf-typegen",
 		"deploy": "pnpm deploy:mcp && pnpm deploy:ai && pnpm deploy:web",
 		"deploy:mcp": "pnpm --filter stock-analyze-mcp run deploy",
 		"deploy:ai": "pnpm --filter stock-analyze-ai run deploy",
 		"deploy:web": "pnpm --filter stock-analyze-web run deploy",
-		"test": "pnpm -r test",
 		"dev": "pnpm -r dev",
 		"dev:mcp": "pnpm --filter stock-analyze-mcp dev",
 		"dev:ai": "pnpm --filter stock-analyze-ai dev",
 		"dev:web": "pnpm --filter stock-analyze-web dev",
-		"cf-typegen": "pnpm -r cf-typegen"
+		"run:seed-edinet": "pnpm --filter stock-analyze-collector run:seed-edinet",
+		"test": "pnpm -r test"
 	},
 	"packageManager": "pnpm@10.23.0",
 	"pnpm": {
 		"onlyBuiltDependencies": [
-			"better-sqlite3"
+			"better-sqlite3",
+			"sharp"
 		]
 	}
 }

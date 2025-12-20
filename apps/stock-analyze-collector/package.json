@@ -19,13 +19,16 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.927.0",
     "@duckdb/node-api": "1.4.2-r.1",
+    "@types/yargs": "^17.0.35",
+    "@xenova/transformers": "^2.17.2",
     "axios": "^1.13.1",
     "dotenv": "^17.2.3",
-    "edinet-ts": "^1.1.7",
+    "edinet-ts": "^1.1.8",
     "parquetjs": "^0.11.2",
     "stock-analyze-domain": "workspace:*",
     "xlsx": "^0.18.5",
-    "yahoo-finance2": "^3.10.0"
+    "yahoo-finance2": "^3.10.0",
+    "yargs": "^18.0.0"
   },
   "devDependencies": {
     "@types/node": "^24.6.0",

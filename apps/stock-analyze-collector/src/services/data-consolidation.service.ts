@@ -119,27 +119,47 @@ export class DataConsolidationService {
         // 必要に応じてファイル名のパターンなどを調整する
         const edinetPathQuery = path.join(edinetDir, '**/*.json');
 
-        // read_json_auto で読み込み、filename=true でファイルパスも取得
-        // ファイルパスからコードなどを抽出するロジックは保存時の命名規則に依存する
-        // ここでは仮に filename からコードを抽出する例を示す (保存時のファイル名が code を含む場合)
-        // もし edinet-ts get の保存ファイル名が ticker を含まない場合は、ディレクトリ構造から抽出する必要があるかもしれない
-
-        // edinet-ts のデフォルト保存ファイル名は {ticker}-{date}-{type}-{docId}.json のような形式か、
-        // あるいはディレクトリ分けされているか確認が必要だが、
-        // 以下のクエリは汎用的にJSONを読み込むものとする。
-
+        // ベクトル化済みJSONの構造に合わせたクエリ
+        // { ticker, docId, date, year, business_risks, business_risks_vector, mda, mda_vector }
+        // そのまま read_json_auto で読み込めば、vector は LIST(DOUBLE) として認識される。
+        // ファイル名からではなく、JSON内のフィールドから code (ticker) や year を取得する。
         const query = `
-      CREATE OR REPLACE TABLE edinet AS 
-      SELECT 
-        *,
-        regexp_extract(filename, '([0-9]{4})', 1) as code,
-        filename
-      FROM read_json_auto('${edinetPathQuery}', filename=true);
-    `;
+            CREATE OR REPLACE TABLE edinet AS 
+            SELECT 
+                ticker as code,
+                year,
+                date,
+                docId,
+                
+                -- Qualitative
+                business_risks,
+                business_risks_vector,
+                mda,
+                mda_vector,
+                corporate_governance,
+                corporate_governance_vector,
+                research_and_development,
+                research_and_development_vector,
+
+                -- Quantitative
+                net_sales,
+                operating_income,
+                ordinary_income,
+                net_income,
+                net_assets,
+                total_assets,
+                earnings_per_share,
+                book_value_per_share,
+                equity_to_total_assets_ratio,
+                rate_of_return_on_equity,
+
+                filename
+            FROM read_json_auto('${edinetPathQuery}', filename=true);
+        `;
 
         try {
             await this.conn!.run(query);
-            this.logger.info('Edinet table created.');
+            this.logger.info('Edinet table created with vectors.');
         } catch (e: any) {
             // ファイルがない場合などはエラーになるので警告に留める
             this.logger.warn(`Failed to create edinet table (maybe no files found): ${e.message}`);
