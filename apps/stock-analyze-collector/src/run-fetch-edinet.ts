@@ -32,7 +32,7 @@ async function main() {
             alias: 'y',
             type: 'number',
             description: 'Number of years to look back',
-            default: 1
+            default: 3
         })
         .help()
         .argv;

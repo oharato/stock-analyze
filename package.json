@@ -18,6 +18,7 @@
 		"run:fetch-past-fundamentals": "pnpm --filter stock-analyze-collector run:fetch-past-fundamentals",
 		"run:fetch-latest-fundamentals": "pnpm --filter stock-analyze-collector run:fetch-latest-fundamentals",
 		"run:seed-edinet": "pnpm --filter stock-analyze-collector run:seed-edinet",
+		"run:fetch-edinet": "pnpm --filter stock-analyze-collector run:fetch-edinet",
 		"run:consolidate-data": "pnpm --filter stock-analyze-collector run:consolidate-data",
 		"test": "pnpm -r test"
 	},
