@@ -78,8 +78,19 @@ describe('EdinetFetchService', () => {
             // Mock parser
             const mockParser = (service as any).parser;
             mockParser.parse.mockReturnValue({
-                businessRisks: 'Test risks',
-                managementAnalysis: 'Test analysis'
+                getCommonMetadata: () => ({
+                    docID: 'S100TEST',
+                    filerName: 'Test Company',
+                    edinetCode: 'E12345',
+                    docDescription: 'Test Document',
+                    submitDate: '2025-01-01'
+                }),
+                getQualitativeInfo: () => ({
+                    businessRisks: 'Test risks',
+                    financialAnalysis: 'Test analysis'
+                }),
+                getKeyMetrics: () => ({}),
+                getMajorShareholders: () => []
             });
 
             // Process document
@@ -112,8 +123,19 @@ describe('EdinetFetchService', () => {
             // Mock parser
             const mockParser = (service as any).parser;
             mockParser.parse.mockReturnValue({
-                businessRisks: 'Test risks',
-                managementAnalysis: 'Test analysis'
+                getCommonMetadata: () => ({
+                    docID: 'S100NEW',
+                    filerName: 'New Company',
+                    edinetCode: 'E67890',
+                    docDescription: 'New Document',
+                    submitDate: '2025-01-01'
+                }),
+                getQualitativeInfo: () => ({
+                    businessRisks: 'Test risks',
+                    financialAnalysis: 'Test analysis'
+                }),
+                getKeyMetrics: () => ({}),
+                getMajorShareholders: () => []
             });
 
             // Process document
@@ -142,8 +164,8 @@ describe('EdinetFetchService', () => {
 
             const result = (service as any).parseFallback(mockXml);
 
-            expect(result.businessRisks).toContain('Risk content here');
-            expect(result.managementAnalysis).toContain('Analysis content');
+            expect(result.qualInfo.businessRisks).toContain('Risk content here');
+            expect(result.qualInfo.financialAnalysis).toContain('Analysis content');
         });
 
         it('should handle missing tags gracefully', async () => {
@@ -151,27 +173,13 @@ describe('EdinetFetchService', () => {
 
             const result = (service as any).parseFallback(mockXml);
 
-            expect(result.businessRisks).toBeUndefined();
-            expect(result.managementAnalysis).toBeUndefined();
-            expect(result.corporateGovernance).toBeUndefined();
+            expect(result.qualInfo.businessRisks).toBeUndefined();
+            expect(result.qualInfo.financialAnalysis).toBeUndefined();
+            expect(result.qualInfo.corporateGovernance).toBeUndefined();
         });
     });
 
-    describe('Text Cleaning', () => {
-        it('should remove HTML tags and normalize whitespace', () => {
-            const dirtyText = '<p>Test   content</p>\n<div>More  text</div>';
-            const cleaned = (service as any).cleanText(dirtyText);
 
-            expect(cleaned).toBe('Test content More text');
-        });
-
-        it('should handle empty or non-string input', () => {
-            expect((service as any).cleanText(null)).toBe('');
-            expect((service as any).cleanText(undefined)).toBe('');
-            expect((service as any).cleanText('')).toBe('');
-            expect((service as any).cleanText(123)).toBe('');
-        });
-    });
 
     describe('Document Filtering', () => {
         it('should filter out documents without secCode', () => {

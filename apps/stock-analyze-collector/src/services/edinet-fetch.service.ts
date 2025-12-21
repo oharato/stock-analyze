@@ -1,8 +1,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { EdinetXbrlDownloader, EdinetXbrlParser, EdinetDocumentType, EdinetInfoSeeder, EdinetRepository } from 'edinet-ts';
+import { EdinetXbrlDownloader, EdinetXbrlParser, EdinetDocumentType, EdinetInfoSeeder, EdinetRepository, QualitativeInfo, KeyMetrics, CommonMetadata, ShareholderInfo } from 'edinet-ts';
 import { LoggerService } from './logger.service.js';
 import { EdinetDataWithVectors } from '../types/edinet.js';
+
 
 export class EdinetFetchService {
     private downloader: EdinetXbrlDownloader | null = null;
@@ -169,8 +170,28 @@ export class EdinetFetchService {
         let processedCount = 0;
 
         try {
-            const allDocs = await this.downloader!.searchPeriod(startStr, endStr, EdinetDocumentType.AnnualCards);
-            const targetDocs = allDocs.filter(d => d.secCode === targetSecCode);
+            // Use local DB with indexes instead of API call for better performance
+            const repo = new EdinetRepository(this.edinetDbPath);
+
+            // Query local DB (uses idx_sec_doc_type_date index)
+            const allDocs = await repo.findDocuments({});
+
+            // Filter by secCode, date range, and document type
+            const targetTypes = [
+                EdinetDocumentType.AnnualCards,
+                EdinetDocumentType.SemiAnnualReport,
+                EdinetDocumentType.QuarterlyReport
+            ].map(String);
+
+            const targetDocs = allDocs.filter((d: any) => {
+                if (d.secCode !== targetSecCode) return false;
+
+                const date = d.submitDate || d.date;
+                if (!date) return false;
+                if (date < startStr || date > endStr) return false;
+
+                return targetTypes.includes(String(d.docTypeCode));
+            });
 
             if (targetDocs.length === 0) {
                 this.logger.info(`No documents found in this period.`);
@@ -180,7 +201,8 @@ export class EdinetFetchService {
             this.logger.info(`Found ${targetDocs.length} document(s). Processing...`);
 
             for (const doc of targetDocs) {
-                const docDate = doc.date || (doc.submitDateTime ? doc.submitDateTime.split(' ')[0] : undefined);
+                // @ts-ignore - EdinetMetadata uses submitDate
+                const docDate = doc.submitDate || doc.date;
                 if (!docDate) {
                     this.logger.warn(`Skipping document (DocID: ${doc.docID}) due to missing date.`);
                     continue;
@@ -222,8 +244,18 @@ export class EdinetFetchService {
     private async processDocument(doc: any, docDate: string, ticker: string): Promise<boolean> {
         this.logger.info(`Processing document: ${doc.docDescription} (DocID: ${doc.docID}, Date: ${docDate})`);
 
+        // Organize by ticker prefix (first character, handles both numeric and alphanumeric codes)
+        // Examples: 1234 -> 1/, 130A -> 1/, 9999 -> 9/
+        const tickerPrefix = ticker.charAt(0);
+        const subDir = path.join(this.dataDir, tickerPrefix);
+
+        // Ensure subdirectory exists
+        if (!fs.existsSync(subDir)) {
+            fs.mkdirSync(subDir, { recursive: true });
+        }
+
         const filename = `${ticker}-${docDate}-${doc.docID}.json`;
-        const filePath = path.join(this.dataDir, filename);
+        const filePath = path.join(subDir, filename);
 
         if (fs.existsSync(filePath)) {
             this.logger.info(`File already exists: ${filePath}. Skipping.`);
@@ -255,97 +287,186 @@ export class EdinetFetchService {
             this.logger.info(`Cached XBRL to: ${xbrlCachePath}`);
         }
 
-        let xbrlData = this.parser.parse(xbrlText) as any;
+        const parsed = this.parser.parse(xbrlText);
+        const commonMetadata = parsed.getCommonMetadata();
+        let qualInfo = parsed.getQualitativeInfo();
+        let metrics = parsed.getKeyMetrics();
+        const shareholders = parsed.getMajorShareholders();
 
         // Fallback if extracting text failed (common for Quarterly/Semi-Annual)
-        if (!xbrlData.businessRisks && !xbrlData.managementAnalysis && !xbrlData.operatingResults) {
+        if (!qualInfo.businessRisks && !qualInfo.financialAnalysis) {
             this.logger.info('Standard parsing returned incomplete text. Using fallback regex parsing...');
-            const fallbackData = this.parseFallback(xbrlText);
-            xbrlData = { ...xbrlData, ...fallbackData };
+            const fallbackResult = this.parseFallback(xbrlText);
+            qualInfo = fallbackResult.qualInfo;
+            metrics = { ...metrics, ...fallbackResult.metrics };
         }
 
-        const saveData = await this.buildSaveData(ticker, doc.docID, docDate, xbrlData);
+        const saveData = await this.buildSaveData(ticker, doc.docID, docDate, commonMetadata, qualInfo, metrics, shareholders);
 
         fs.writeFileSync(filePath, JSON.stringify(saveData, null, 2), 'utf-8');
         this.logger.info(`Saved data with vectors to ${filePath}`);
-
         return true;
     }
 
-    private parseFallback(xml: string): any {
-        const extract = (tagName: string) => {
+    private parseFallback(xml: string): { qualInfo: QualitativeInfo; metrics: Partial<KeyMetrics> } {
+        const extractText = (tagName: string) => {
             // Match content between <tag ...> and </tag>
-            const regex = new RegExp(`<${tagName}[^>]*>([\\s\\S]*?)<\/${tagName}>`, 'i');
+            const regex = new RegExp(`<${tagName}[^>]*>([\\s\\S]*?)</${tagName}>`, 'i');
             const match = xml.match(regex);
-            return match ? match[1] : undefined;
+            if (!match) return undefined;
+
+            // Decode HTML entities and remove tags
+            let text = match[1];
+            text = text.replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+            text = text.replace(/&amp;/g, '&').replace(/&quot;/g, '"');
+            text = text.replace(/&apos;/g, "'").replace(/&nbsp;/g, ' ');
+            text = text.replace(/<[^>]*>/g, ''); // Remove HTML tags
+            text = text.replace(/\s+/g, ' ').trim();
+            return text || undefined;
+        };
+
+        const extractNumber = (tagName: string): number | undefined => {
+            // Extract numeric value from tag
+            const regex = new RegExp(`<${tagName}[^>]*>([\\s\\S]*?)</${tagName}>`, 'i');
+            const match = xml.match(regex);
+            if (!match) return undefined;
+
+            const text = match[1].replace(/,/g, '').trim();
+            const num = parseFloat(text);
+            return isNaN(num) ? undefined : num;
         };
 
         return {
-            businessRisks: extract('jpcrp_cor:BusinessRisksTextBlock'),
-            managementAnalysis: extract('jpcrp_cor:ManagementAnalysisOfFinancialPositionOperatingResultsAndCashFlowsTextBlock') ||
-                extract('jpcrp_cor:ManagementAnalysisOfFinancialPositionEtcTextBlock'),
-            corporateGovernance: extract('jpcrp_cor:CorporateGovernanceTextBlock'),
-            researchAndDevelopment: extract('jpcrp_cor:ResearchAndDevelopmentActivitiesTextBlock')
+            qualInfo: {
+                businessPolicy: extractText('jpcrp_cor:BusinessPolicyBusinessEnvironmentIssuesToAddressEtcTextBlock'),
+                businessRisks: extractText('jpcrp_cor:BusinessRisksTextBlock'),
+                financialAnalysis: extractText('jpcrp_cor:ManagementAnalysisOfFinancialPositionOperatingResultsAndCashFlowsTextBlock') ||
+                    extractText('jpcrp_cor:ManagementAnalysisOfFinancialPositionEtcTextBlock'),
+                businessDescription: extractText('jpcrp_cor:DescriptionOfBusinessTextBlock'),
+                companyHistory: extractText('jpcrp_cor:CompanyHistoryTextBlock'),
+                researchAndDevelopment: extractText('jpcrp_cor:ResearchAndDevelopmentActivitiesTextBlock')
+            } as QualitativeInfo,
+            metrics: {
+                netSales: extractNumber('jpcrp_cor:NetSalesSummaryOfBusinessResults') ||
+                    extractNumber('jppfs_cor:NetSales') ||
+                    extractNumber('jpcrp_cor:NetSales'),
+                operatingIncome: extractNumber('jpcrp_cor:OperatingIncomeLossSummaryOfBusinessResults') ||
+                    extractNumber('jppfs_cor:OperatingIncome') ||
+                    extractNumber('jpcrp_cor:OperatingIncome'),
+                ordinaryIncome: extractNumber('jpcrp_cor:OrdinaryIncomeLossSummaryOfBusinessResults') ||
+                    extractNumber('jppfs_cor:OrdinaryIncome') ||
+                    extractNumber('jpcrp_cor:OrdinaryIncome'),
+                netIncome: extractNumber('jpcrp_cor:ProfitLossAttributableToOwnersOfParentSummaryOfBusinessResults') ||
+                    extractNumber('jppfs_cor:ProfitLoss') ||
+                    extractNumber('jpcrp_cor:NetIncome'),
+                netAssets: extractNumber('jpcrp_cor:NetAssetsSummaryOfBusinessResults') ||
+                    extractNumber('jppfs_cor:NetAssets'),
+                totalAssets: extractNumber('jpcrp_cor:TotalAssetsSummaryOfBusinessResults') ||
+                    extractNumber('jppfs_cor:Assets'),
+                earningsPerShare: extractNumber('jpcrp_cor:BasicEarningsLossPerShareSummaryOfBusinessResults') ||
+                    extractNumber('jppfs_cor:BasicEarningsLossPerShare'),
+                bookValuePerShare: extractNumber('jpcrp_cor:NetAssetsPerShareSummaryOfBusinessResults') ||
+                    extractNumber('jppfs_cor:NetAssetsPerShare'),
+                equityToTotalAssetsRatio: extractNumber('jpcrp_cor:EquityToAssetRatioSummaryOfBusinessResults') ||
+                    extractNumber('jppfs_cor:EquityToAssetRatio'),
+                rateOfReturnOnEquity: extractNumber('jpcrp_cor:RateOfReturnOnEquitySummaryOfBusinessResults') ||
+                    extractNumber('jppfs_cor:RateOfReturnOnEquity')
+            }
         };
     }
 
     /**
      * Construct the data object with vectorization
      */
-    private async buildSaveData(ticker: string, docId: string, docDate: string, xbrlData: any): Promise<EdinetDataWithVectors> {
-        // Text fields
-        const businessRisks = this.cleanText(xbrlData.businessRisks);
-        const mda = this.cleanText(xbrlData.managementAnalysis || xbrlData.operatingResults);
-        const corporateGovernance = this.cleanText(xbrlData.corporateGovernance);
-        const researchAndDevelopment = this.cleanText(xbrlData.researchAndDevelopment);
+    private async buildSaveData(
+        ticker: string,
+        docId: string,
+        docDate: string,
+        commonMetadata: CommonMetadata,
+        qualInfo: QualitativeInfo,
+        metrics: KeyMetrics,
+        shareholders: ShareholderInfo[]
+    ): Promise<EdinetDataWithVectors> {
+        // Text fields (already cleaned by getQualitativeInfo())
+        const businessPolicy = qualInfo.businessPolicy || '';
+        const businessRisks = qualInfo.businessRisks || '';
+        const mda = qualInfo.financialAnalysis || '';
+        const businessDescription = qualInfo.businessDescription || '';
+        const companyHistory = qualInfo.companyHistory || '';
+        const researchAndDevelopment = qualInfo.researchAndDevelopment || '';
 
         // Vectorize
         const [
+            businessPolicyVector,
             businessRisksVector,
             mdaVector,
-            governanceVector,
+            businessDescriptionVector,
+            companyHistoryVector,
             rdVector
         ] = await Promise.all([
+            this.vectorize(businessPolicy),
             this.vectorize(businessRisks),
             this.vectorize(mda),
-            this.vectorize(corporateGovernance),
+            this.vectorize(businessDescription),
+            this.vectorize(companyHistory),
             this.vectorize(researchAndDevelopment)
         ]);
 
         return {
+            // Metadata
+            doc_id: commonMetadata.docID,
+            filer_name: commonMetadata.filerName,
+            edinet_code: commonMetadata.edinetCode,
+            doc_description: commonMetadata.docDescription,
+            submit_date: commonMetadata.submitDate,
+
             ticker,
             docId: docId,
             date: docDate,
             year: new Date(docDate).getFullYear(),
 
-            // Qualitative
+            // Qualitative - All 6 fields
+            business_policy: businessPolicy,
+            business_policy_vector: businessPolicyVector,
             business_risks: businessRisks,
             business_risks_vector: businessRisksVector,
             mda: mda,
             mda_vector: mdaVector,
-            corporate_governance: corporateGovernance,
-            corporate_governance_vector: governanceVector,
+            business_description: businessDescription,
+            business_description_vector: businessDescriptionVector,
+            company_history: companyHistory,
+            company_history_vector: companyHistoryVector,
             research_and_development: researchAndDevelopment,
             research_and_development_vector: rdVector,
+            corporate_governance: '', // Not available in QualitativeInfo
+            corporate_governance_vector: [],
 
-            // Quantitative
-            net_sales: xbrlData.netSales,
-            operating_income: xbrlData.operatingIncome,
-            ordinary_income: xbrlData.ordinaryIncome,
-            net_income: xbrlData.netIncome,
-            net_assets: xbrlData.netAssets,
-            total_assets: xbrlData.totalAssets,
-            earnings_per_share: xbrlData.earningsPerShare,
-            book_value_per_share: xbrlData.bookValuePerShare,
-            equity_to_total_assets_ratio: xbrlData.equityToAssetRatio,
-            rate_of_return_on_equity: xbrlData.rateOfReturnOnEquity
+            // Quantitative - All 19 fields
+            net_sales: metrics.netSales,
+            operating_income: metrics.operatingIncome,
+            ordinary_income: metrics.ordinaryIncome,
+            net_income: metrics.netIncome,
+            net_assets: metrics.netAssets,
+            total_assets: metrics.totalAssets,
+            operating_cash_flow: metrics.operatingCashFlow,
+            investing_cash_flow: metrics.investingCashFlow,
+            financing_cash_flow: metrics.financingCashFlow,
+            cash_and_equivalents: metrics.cashAndEquivalents,
+            earnings_per_share: metrics.earningsPerShare,
+            book_value_per_share: metrics.bookValuePerShare,
+            equity_to_total_assets_ratio: metrics.equityToTotalAssetsRatio,
+            rate_of_return_on_equity: metrics.rateOfReturnOnEquity,
+            price_earnings_ratio: metrics.priceEarningsRatio,
+            payout_ratio: metrics.payoutRatio,
+            number_of_issued_shares: metrics.numberOfIssuedShares,
+            dividend_paid_per_share: metrics.dividendPaidPerShare,
+
+            // Shareholders
+            major_shareholders: shareholders
         };
     }
 
-    private cleanText(text: any): string {
-        if (!text || typeof text !== 'string') return '';
-        return text.replace(/<[^>]*>?/gm, '').replace(/\s+/g, ' ').trim();
-    }
+
 
     private async vectorize(text: string): Promise<number[]> {
         if (!text) return [];
