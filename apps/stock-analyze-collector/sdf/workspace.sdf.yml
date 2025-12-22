@@ -1,0 +1,5 @@
+workspace:
+  name: stock_analyze
+  edition: "1.3"
+  includes:
+    - path: src

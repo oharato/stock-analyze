@@ -45,7 +45,43 @@ pnpm run run:fetch-edinet --ticker=<TICKER> --years=<YEARS>
 
 ---
 
-## 2. データ統合バッチ
+## 2. 株価データ取得バッチ
+
+Yahoo Financeから株価データを取得し、Parquet形式で保存します。
+
+### コマンド
+```bash
+pnpm run run:fetch-stock-prices [options]
+```
+
+### 引数
+- `--code`: 取得対象の銘柄コード。省略時は全銘柄。
+- `--year`: 取得対象の年。
+- `--force`: 既存データをスキップせず強制取得するか。
+
+### 処理概要
+- `data/processed/prices/code={code}/{year}-{month}.parquet` に保存されます。
+
+---
+
+## 3. 財務データ取得バッチ
+
+IR BANKから財務データを取得し、Parquet形式で保存します。
+
+### コマンド
+```bash
+pnpm run run:fetch-latest-fundamentals
+pnpm run run:fetch-past-fundamentals
+```
+
+### 処理概要
+- 最新および過去の財務データを取得します。
+- `data/processed/fundamentals/code={code}/fundamentals.parquet` に保存されます。
+- **注意**: カラム名はソース(IR BANK)の定義に依存し、日本語の財務項目名が含まれる場合があります。
+
+---
+
+## 4. データ統合バッチ
 
 収集された各種データ（株価、財務情報、EDINET情報）を DuckDB データベースに統合します。
 
@@ -55,13 +91,49 @@ pnpm run run:consolidate-data
 ```
 
 ### 処理概要
-- `data/raw/edinet/*.json` を読み込み、DuckDB の `edinet` テーブルを作成（または置換）します。
-- JSON 内のベクトル配列は DuckDB の `DOUBLE[]` (LIST) 型として取り込まれます。
-- その他、`companies`, `prices`, `fundamentals` テーブルもParquetファイル等から生成されます。
+- **Semantic Data Fabric (SDF)** を使用してデータ統合パイプラインを定義・実行します。
+- **定義ファイル**: `sdf/src/sources.sql` (データソース定義) および `sdf/src/models.sql` (データモデル・変換定義)。
+- **SDF** が `data/processed` 配下の各種ファイル (Parquet/JSON) を読み込み、統合テーブル (`prices`, `fundamentals`, `edinet`) を構築します。
+- 実行エンジンには DuckDB が使用されます。
 
 ---
 
-## 3. DuckDB テーブル構造
+## 5. DuckDB テーブル構造
+
+### `companies` テーブル
+銘柄マスターデータを格納します。
+
+| カラム名 | データ型 | 説明 |
+| :--- | :--- | :--- |
+| `code` | `VARCHAR` | 銘柄コード。 |
+| `name` | `VARCHAR` | 銘柄名。 |
+| `market` | `VARCHAR` | 市場区分。 |
+| `sector33` | `VARCHAR` | 33業種区分。 |
+| `sector17` | `VARCHAR` | 17業種区分。 |
+| `scale` | `VARCHAR` | 規模区分。 |
+
+### `prices` テーブル
+株価データ（日足）を格納します。
+
+| カラム名 | データ型 | 説明 |
+| :--- | :--- | :--- |
+| `code` | `VARCHAR` | 銘柄コード。 |
+| `datef` | `DATE` | 日付。|
+| `open` | `DOUBLE` | 始値。 |
+| `high` | `DOUBLE` | 高値。 |
+| `low` | `DOUBLE` | 安値。 |
+| `close` | `DOUBLE` | 終値。 |
+| `adjClose` | `DOUBLE` | 調整後終値。 |
+| `volume` | `BIGINT` | 出来高。 |
+
+### `fundamentals` テーブル
+財務データを格納します。
+
+| カラム名 | データ型 | 説明 |
+| :--- | :--- | :--- |
+| `code` | `VARCHAR` | 銘柄コード。 |
+| `year` | `VARCHAR` | 年度 (例: 2024)。 |
+| `*` | `DOUBLE/VARCHAR` | その他、IR BANKから取得した財務項目（日本語カラム名）。 |
 
 ### `edinet` テーブル
 EDINETから取得した定性情報およびそのベクトルデータを格納します。

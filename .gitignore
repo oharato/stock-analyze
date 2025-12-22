@@ -200,3 +200,8 @@ dist
 
 data/
 minio_data/
+### SDF ###
+.sdf/
+sdftarget/
+apps/stock-analyze-collector/.bin/
+data/master/stock_list.ndjson
