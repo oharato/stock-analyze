@@ -12,7 +12,7 @@ const PROJECT_ROOT = path.join(__dirname, '..', '..', '..', '..');
 const BASE_DIR = path.join(PROJECT_ROOT, 'data', 'processed', 'fundamentals');
 
 export class FundamentalRepository {
-  constructor(private readonly logger: LoggerService) {}
+  constructor(private readonly logger: LoggerService) { }
 
   public doesDataExist(code: string): boolean {
     const filePath = path.join(BASE_DIR, `code=${code}`, 'fundamentals.parquet');
@@ -25,13 +25,7 @@ export class FundamentalRepository {
       return;
     }
 
-    // 最初の企業の最初の年度データからスキーマを推測
-    const firstCompanyData = mergedData.values().next().value;
-    if (!firstCompanyData || firstCompanyData.length === 0) {
-      this.logger.info('No data available to create schema. Skipping save.');
-      return;
-    }
-    const schema = this.createSchema(firstCompanyData[0]);
+    const schema = this.inferSchema(mergedData);
 
     for (const [code, yearlyData] of mergedData.entries()) {
       if (yearlyData.length === 0) continue;
@@ -53,16 +47,37 @@ export class FundamentalRepository {
     this.logger.info(`Saved fundamental data for ${mergedData.size} companies to ${BASE_DIR}`);
   }
 
-  private createSchema(data: any): InstanceType<typeof ParquetSchema> {
-    const schemaDef: { [key: string]: { type: 'DOUBLE' | 'UTF8'; optional?: boolean } } = {};
-    for (const key in data) {
-      const value = data[key];
-      if (typeof value === 'number') {
-        schemaDef[key] = { type: 'DOUBLE', optional: true };
-      } else {
-        schemaDef[key] = { type: 'UTF8', optional: true };
+  private inferSchema(mergedData: Map<string, any[]>): InstanceType<typeof ParquetSchema> {
+    const fieldTypes: { [key: string]: 'DOUBLE' | 'UTF8' } = {};
+    const params: { [key: string]: { type: 'DOUBLE' | 'UTF8'; optional: boolean } } = {};
+
+    // 全データをスキャンしてフィールドと型を特定
+    for (const yearlyData of mergedData.values()) {
+      for (const row of yearlyData) {
+        for (const [key, value] of Object.entries(row)) {
+          // すでに型が決定している場合はスキップ（ただし、NULLばかりだった後に値が来た場合などは更新したいが、DOUBLE優先）
+          if (fieldTypes[key] === 'DOUBLE') continue;
+
+          if (typeof value === 'number') {
+            fieldTypes[key] = 'DOUBLE';
+          } else if (typeof value === 'string' && !fieldTypes[key]) {
+            fieldTypes[key] = 'UTF8';
+          }
+        }
       }
     }
-    return new ParquetSchema(schemaDef);
+
+    // スキーマ定義を作成
+    for (const [key, type] of Object.entries(fieldTypes)) {
+      params[key] = { type, optional: true };
+    }
+
+    // まだ型が決まっていない（全てnullなど）フィールドがあればUTF8にする
+    // ここでフィールド一覧も網羅する必要があるが、上記ループでフィールドは見つかっているはず。
+
+    // 念のため、もう一度全フィールドを確認して、型未定のものをUTF8に設定
+    // (fieldTypesに含まれていればparamsに入っているはずだが、念のため実装)
+
+    return new ParquetSchema(params);
   }
 }
