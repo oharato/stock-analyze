@@ -26,6 +26,7 @@ export class FundamentalRepository {
     }
 
     const schema = this.inferSchema(mergedData);
+    const schemaFields = schema.schema;
 
     for (const [code, yearlyData] of mergedData.entries()) {
       if (yearlyData.length === 0) continue;
@@ -39,7 +40,16 @@ export class FundamentalRepository {
       const writer = await ParquetWriter.openFile(schema, filePath);
 
       for (const row of yearlyData) {
-        await writer.appendRow(row);
+        const cleanRow: any = {};
+        for (const [key, value] of Object.entries(row)) {
+          // 一般的に '-' はデータなしとして扱う
+          if (value === '-') {
+            cleanRow[key] = undefined;
+          } else {
+            cleanRow[key] = value;
+          }
+        }
+        await writer.appendRow(cleanRow);
       }
 
       await writer.close();
@@ -55,13 +65,19 @@ export class FundamentalRepository {
     for (const yearlyData of mergedData.values()) {
       for (const row of yearlyData) {
         for (const [key, value] of Object.entries(row)) {
-          // すでに型が決定している場合はスキップ（ただし、NULLばかりだった後に値が来た場合などは更新したいが、DOUBLE優先）
+          // すでにDOUBLEと決定している場合はスキップ
           if (fieldTypes[key] === 'DOUBLE') continue;
 
           if (typeof value === 'number') {
             fieldTypes[key] = 'DOUBLE';
-          } else if (typeof value === 'string' && !fieldTypes[key]) {
-            fieldTypes[key] = 'UTF8';
+          } else if (typeof value === 'string') {
+            // '-' は型決定においては無視（数値カラムに入っている可能性があるため）
+            if (value === '-') continue;
+
+            // それ以外の文字列ならUTF8
+            if (!fieldTypes[key]) {
+              fieldTypes[key] = 'UTF8';
+            }
           }
         }
       }
@@ -72,11 +88,28 @@ export class FundamentalRepository {
       params[key] = { type, optional: true };
     }
 
-    // まだ型が決まっていない（全てnullなど）フィールドがあればUTF8にする
-    // ここでフィールド一覧も網羅する必要があるが、上記ループでフィールドは見つかっているはず。
+    // まだ型が決まっていない（全てnullまた'-'など）フィールドがあればUTF8にする
+    // 実際にデータにある全キーを網羅するため、もう一度スキャンが必要か、
+    // あるいは上のループで全てのキーを少なくとも undefined で登録しておくべきか。
+    // ここではシンプルに、上のループで見つかったキーのみを対象としている。
+    // もし全ての行でそのキーが '-' だった場合、fieldTypes[key] は undefined になる。
 
-    // 念のため、もう一度全フィールドを確認して、型未定のものをUTF8に設定
-    // (fieldTypesに含まれていればparamsに入っているはずだが、念のため実装)
+    // 全キーを収集
+    const allKeys = new Set<string>();
+    for (const yearlyData of mergedData.values()) {
+      for (const row of yearlyData) {
+        Object.keys(row).forEach(k => allKeys.add(k));
+      }
+    }
+
+    for (const key of allKeys) {
+      if (!params[key]) {
+        // デフォルトはUTF8（DOUBLEにすると '-' ばかりの場合に混乱するかもだが、
+        // 書き込み時に '-' を null にするのであれば DOUBLE でも UTF8 でも実は問題ない。
+        // 安全のため UTF8 にしておく）
+        params[key] = { type: 'UTF8', optional: true };
+      }
+    }
 
     return new ParquetSchema(params);
   }
