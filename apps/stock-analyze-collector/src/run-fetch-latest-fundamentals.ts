@@ -10,6 +10,8 @@ import { IIrbankClient } from './clients/irbank.client.interface.js';
 import { FetchFundamentalsService } from './services/fetch-fundamentals.service.js';
 import { RawJsonRepository } from './repositories/raw-json.repository.js';
 import * as dotenv from 'dotenv';
+import yargs from 'yargs';
+import { hideBin } from 'yargs/helpers';
 
 dotenv.config();
 
@@ -17,6 +19,22 @@ const logger = new LoggerService();
 
 async function main() {
   logger.info('--- Start Batch: Fetch Latest Fundamentals ---');
+
+  // Parse CLI arguments
+  const argv = await yargs(hideBin(process.argv))
+    .option('force', {
+      alias: 'f',
+      type: 'boolean',
+      description: 'Force re-fetch even if data exists',
+      default: false
+    })
+    .help()
+    .argv;
+
+  const force = argv.force;
+  if (force) {
+    logger.info('Force mode enabled: will re-fetch all data');
+  }
 
   const useMock = process.env.USE_MOCK === 'true';
 
@@ -43,6 +61,7 @@ async function main() {
     rawJsonRepository,
     logger,
     ['0000'],
+    force
   );
 
   logger.info('Starting to fetch latest fundamentals data...');

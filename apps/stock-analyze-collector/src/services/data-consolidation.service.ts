@@ -21,7 +21,7 @@ export class DataConsolidationService {
         this.conn = await this.instance.connect();
 
         this.logger.info('Setting memory limit...');
-        await this.conn.run("PRAGMA memory_limit='4GB';");
+        await this.conn.run("PRAGMA memory_limit='10GB';");
     }
 
     /**
@@ -33,20 +33,15 @@ export class DataConsolidationService {
         }
 
         try {
-            await this.consolidateStockList();
-            await this.consolidatePrices();
-            // await this.consolidateFundamentals();
+            // await this.consolidateStockList();
+            // await this.consolidatePrices();
+            await this.consolidateFundamentals();
             await this.consolidateEdinet();
         } finally {
-            // 接続のクローズ処理があればここで行う（現状node-apiは明示的なcloseが必須ではない場合もあるが、実装依存）
+            // 接続のクローズ処理があればここで行う
         }
     }
 
-    /**
-     * 株価データを統合します
-     * 日次更新を考慮し、全てのParquetファイルを読み込んでコード・日付順にソートしてテーブルを再作成します。
-     * (差分更新よりも、クエリパフォーマンス("Sort by Code, Date")を優先し、常に最適な並び順を維持するため再作成を選択)
-     */
     /**
      * 株価データを統合します (増分処理対応)
      */
@@ -66,14 +61,17 @@ export class DataConsolidationService {
         `);
 
         // 2. Load processed codes to resume
-
-        const result = await this.conn!.run(`
-            SELECT key FROM consolidation_state WHERE category = 'prices';
-        `);
         const processedCodes = new Set<string>();
 
-        // Get all stock codes from directory names
-
+        // @duckdb/node-api の streamReader を使って結果を取得する。
+        // check table existence first for safety in case of first run empty
+        try {
+            const reader = await this.conn!.runAndRead(`SELECT key FROM consolidation_state WHERE category = 'prices'`);
+            const rows = await reader.getRows();
+            for (const row of rows) {
+                processedCodes.add(String(row[0]));
+            }
+        } catch (e) { /* ignore if table empty or issue */ }
 
         // ディレクトリ一覧から全コードを取得
         let dirs: string[] = [];
@@ -89,21 +87,9 @@ export class DataConsolidationService {
 
         this.logger.info(`Found ${dirs.length} stock directories.`);
 
-        // バッチサイズ
         const BATCH_SIZE = 50;
         let processedCount = 0;
         const totalCount = dirs.length;
-
-        // Get processed codes from DB
-
-
-        // @duckdb/node-api の streamReader を使って結果を取得する。
-        const reader = await this.conn!.runAndRead(`SELECT key FROM consolidation_state WHERE category = 'prices'`);
-        const rows = await reader.getRows();
-        for (const row of rows) {
-            // row is [(string)], assuming key is the first column
-            processedCodes.add(String(row[0]));
-        }
 
         const pendingCodes = dirs.filter(dir => {
             const code = dir.replace('code=', '');
@@ -123,12 +109,10 @@ export class DataConsolidationService {
             const chunkCodes = chunk.map(dir => dir.replace('code=', ''));
 
             // Construct query
-
             const fileGlobs = chunk.map(dir => path.join(pricesDir, dir, '**/*.parquet'));
             const fileListStr = fileGlobs.map(g => `'${g}'`).join(', ');
 
             // Check if table exists to decide between CREATE and INSERT
-
             let tableExists = false;
             try {
                 await this.conn!.run('SELECT 1 FROM prices LIMIT 1');
@@ -163,10 +147,12 @@ export class DataConsolidationService {
                 await this.conn!.run('CHECKPOINT');
 
                 processedCount += chunk.length;
-                this.logger.info(`Processed ${processedCount}/${pendingCodes.length} (Total progress: ${processedCodes.size + processedCount}/${totalCount})`);
+                this.logger.info(`Processed ${processedCount}/${pendingCodes.length}`);
 
             } catch (error: any) {
                 this.logger.error('Error processing batch', { error: error.message });
+                // Don't throw, try next batch? or throw critical?
+                // Throwing to stop is probably safer for now
                 throw error;
             }
         }
@@ -177,17 +163,11 @@ export class DataConsolidationService {
     /**
      * 財務データを統合します
      */
-    /**
-     * 財務データを統合します
-     */
     private async consolidateFundamentals(): Promise<void> {
         this.logger.info('Consolidating fundamentals table...');
         const processedDir = path.join(this.dataDir, 'processed');
-        // NOTE: fundamentalsも同様に増分処理が可能だが、データ量がpricesほどではないと想定し、今回は現状維持とする
         const fundamentalsPathQuery = path.join(processedDir, 'fundamentals/**/*.parquet');
 
-        // try-catchでファイルが存在しない場合をハンドリングすることも可能だが、
-        // read_parquetはファイルがないとエラーになるため、バッチとしてはエラーで落とすのが安全
         const query = `
       CREATE OR REPLACE TABLE fundamentals AS 
       SELECT 
@@ -197,8 +177,12 @@ export class DataConsolidationService {
       ORDER BY code;
     `;
 
-        await this.conn!.run(query);
-        this.logger.info('Fundamentals table created and sorted by code.');
+        try {
+            await this.conn!.run(query);
+            this.logger.info('Fundamentals table created and sorted by code.');
+        } catch (e: any) {
+            this.logger.warn(`Failed to create fundamentals table: ${e.message}`);
+        }
     }
 
     /**
@@ -214,8 +198,12 @@ export class DataConsolidationService {
       FROM read_json_auto('${stockListPath}');
     `;
 
-        await this.conn!.run(query);
-        this.logger.info('Companies table created.');
+        try {
+            await this.conn!.run(query);
+            this.logger.info('Companies table created.');
+        } catch (e: any) {
+            this.logger.warn(`Failed to create companies table: ${e.message}`);
+        }
     }
 
     /**
@@ -224,55 +212,115 @@ export class DataConsolidationService {
     private async consolidateEdinet(): Promise<void> {
         this.logger.info('Consolidating edinet table...');
         const edinetDir = path.join(this.dataDir, 'raw/edinet');
-        // EDINETデータは raw/edinet 配下に保存される想定
-        // ファイル名やディレクトリ構造に依存するが、ここでは一旦すべてのJSONを読み込む
-        // 必要に応じてファイル名のパターンなどを調整する
-        const edinetPathQuery = path.join(edinetDir, '**/*.json');
 
-        // ベクトル化済みJSONの構造に合わせたクエリ
-        // { ticker, docId, date, year, business_risks, business_risks_vector, mda, mda_vector }
-        // そのまま read_json_auto で読み込めば、vector は LIST(DOUBLE) として認識される。
-        // ファイル名からではなく、JSON内のフィールドから code (ticker) や year を取得する。
-        const query = `
-            CREATE OR REPLACE TABLE edinet AS 
-            SELECT 
-                ticker as code,
-                year,
-                date,
-                docId,
-                
-                -- Qualitative
-                business_risks,
-                business_risks_vector,
-                mda,
-                mda_vector,
-                corporate_governance,
-                corporate_governance_vector,
-                research_and_development,
-                research_and_development_vector,
-
-                -- Quantitative (using camelCase from JSON)
-                netSales as net_sales,
-                operatingIncome as operating_income,
-                ordinaryIncome as ordinary_income,
-                netIncome as net_income,
-                netAssets as net_assets,
-                totalAssets as total_assets,
-                earningsPerShare as earnings_per_share,
-                bookValuePerShare as book_value_per_share,
-                equityToTotalAssetsRatio as equity_to_total_assets_ratio,
-                rateOfReturnOnEquity as rate_of_return_on_equity,
-
-                filename
-            FROM read_json_auto('${edinetPathQuery}', filename=true);
-        `;
-
+        let subdirs: string[] = [];
         try {
-            await this.conn!.run(query);
-            this.logger.info('Edinet table created with vectors.');
-        } catch (e: any) {
-            // ファイルがない場合などはエラーになるので警告に留める
-            this.logger.warn(`Failed to create edinet table (maybe no files found): ${e.message}`);
+            // Get subdirectories (1, 2, ..., 9, etc.)
+            const entries = await fs.readdir(edinetDir, { withFileTypes: true });
+            subdirs = entries
+                .filter(dirent => dirent.isDirectory())
+                .map(dirent => dirent.name);
+        } catch (error) {
+            this.logger.warn(`Edinet directory not found or empty: ${edinetDir}`);
+            return;
         }
+
+        if (subdirs.length === 0) {
+            this.logger.warn('No edinet subdirectories found.');
+            return;
+        }
+
+        this.logger.info(`Found ${subdirs.length} subdirectories to process.`);
+
+        // Drop existing table to start fresh (or could use incremental logic if needed later)
+        await this.conn!.run('DROP TABLE IF EXISTS edinet');
+
+        let createdTable = false;
+
+        for (const subdir of subdirs) {
+            const subdirPath = path.join(edinetDir, subdir);
+            const pattern = path.join(subdirPath, '*.json');
+
+            this.logger.info(`Processing subdirectory: ${subdir}`);
+
+            // Explicitly define columns to handle missing keys in JSON (e.g. net_sales for banks)
+            // and ensure correct types.
+            const columnsDef = {
+                ticker: 'VARCHAR',
+                year: 'BIGINT',
+                date: 'VARCHAR',
+                docId: 'VARCHAR',
+
+                business_risks: 'VARCHAR',
+                business_risks_vector: 'DOUBLE[]',
+                mda: 'VARCHAR',
+                mda_vector: 'DOUBLE[]',
+                corporate_governance: 'VARCHAR',
+                corporate_governance_vector: 'DOUBLE[]',
+                research_and_development: 'VARCHAR',
+                research_and_development_vector: 'DOUBLE[]',
+
+                net_sales: 'DOUBLE',
+                operating_income: 'DOUBLE',
+                ordinary_income: 'DOUBLE',
+                net_income: 'DOUBLE',
+                net_assets: 'DOUBLE',
+                total_assets: 'DOUBLE',
+                earnings_per_share: 'DOUBLE',
+                book_value_per_share: 'DOUBLE',
+                equity_to_total_assets_ratio: 'DOUBLE',
+                rate_of_return_on_equity: 'DOUBLE'
+            };
+
+            // Format columns definition for SQL: {'col': 'TYPE', ...}
+            const columnsStr = '{' + Object.entries(columnsDef)
+                .map(([k, v]) => `'${k}': '${v}'`)
+                .join(', ') + '}';
+
+            const selectQuery = `
+                SELECT 
+                    ticker as code,
+                    year,
+                    date,
+                    docId,
+                    
+                    business_risks,
+                    business_risks_vector,
+                    mda,
+                    mda_vector,
+                    corporate_governance,
+                    corporate_governance_vector,
+                    research_and_development,
+                    research_and_development_vector,
+
+                    net_sales,
+                    operating_income,
+                    ordinary_income,
+                    net_income,
+                    net_assets,
+                    total_assets,
+                    earnings_per_share,
+                    book_value_per_share,
+                    equity_to_total_assets_ratio,
+                    rate_of_return_on_equity,
+
+                    filename
+                FROM read_json_auto('${pattern}', filename=true, columns=${columnsStr})
+            `;
+
+            try {
+                if (!createdTable) {
+                    await this.conn!.run(`CREATE TABLE edinet AS ${selectQuery}`);
+                    createdTable = true;
+                } else {
+                    await this.conn!.run(`INSERT INTO edinet ${selectQuery}`);
+                }
+            } catch (e: any) {
+                // If it fails, log and continue
+                this.logger.warn(`Failed to process subdir ${subdir}: ${e.message}`);
+            }
+        }
+
+        this.logger.info('Edinet table consolidation completed.');
     }
 }

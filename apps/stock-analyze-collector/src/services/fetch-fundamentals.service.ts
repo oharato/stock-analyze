@@ -45,6 +45,7 @@ export class FetchFundamentalsService {
         private readonly rawJsonRepository: RawJsonRepository,
         private readonly logger: LoggerService,
         private readonly yearCodes: string[],
+        private readonly force: boolean = false,
     ) { }
 
     /**
@@ -60,7 +61,7 @@ export class FetchFundamentalsService {
         }
 
         // 既存データをチェックして、取得が必要な銘柄のみをフィルタリング
-        const stocksToFetch = stocks.filter((stock) => {
+        const stocksToFetch = this.force ? stocks : stocks.filter((stock) => {
             if (this.fundamentalRepository.doesDataExist(stock.code)) {
                 this.logger.info(`Fundamental data for ${stock.code} already exists. Skipping.`, {
                     code: stock.code,
@@ -77,8 +78,8 @@ export class FetchFundamentalsService {
 
         this.logger.info(`Fetching data for ${stocksToFetch.length} stocks...`);
 
-        // 全銘柄のデータが含まれているファイルを一度だけフェッチ
-        const { allData, allRawData } = await this.fetchAllFinancialData();
+        // 全銘柄のデータが含まれているファイルをフェッチ（即座に保存）
+        const allData = await this.fetchAndSaveFinancialData();
 
         const allFundamentals = new Map<string, any[]>();
 
@@ -95,13 +96,7 @@ export class FetchFundamentalsService {
             }
         }
 
-        // 全てのデータを保存
-        if (allRawData.length > 0) {
-            for (const { yearCode, fileName, data } of allRawData) {
-                await this.rawJsonRepository.save(yearCode, fileName, data);
-            }
-        }
-
+        // Fundamentalsデータを保存
         if (allFundamentals.size > 0) {
             await this.fundamentalRepository.save(allFundamentals);
             this.logger.info(
@@ -116,15 +111,11 @@ export class FetchFundamentalsService {
     }
 
     /**
-     * 全銘柄の財務データを一度だけフェッチ
-     * @returns 全データと生データ
+     * 全銘柄の財務データをフェッチして即座に保存
+     * @returns 全データ（メモリ上のマップ）
      */
-    private async fetchAllFinancialData(): Promise<{
-        allData: Map<string, Map<string, any>>;
-        allRawData: any[];
-    }> {
+    private async fetchAndSaveFinancialData(): Promise<Map<string, Map<string, any>>> {
         const allData = new Map<string, Map<string, any>>(); // Key: yearCode_fileName, Value: Map of stock code to data
-        const allRawData = [];
 
         try {
             for (const yearCode of this.yearCodes) {
@@ -133,16 +124,35 @@ export class FetchFundamentalsService {
                 for (const dataType of dataTypesToFetch) {
                     const fileName = `${dataType}.json`;
 
-                    // ファイルが既に存在する場合はスキップ
-                    if (this.rawJsonRepository.fileExists(yearCode, fileName)) {
+                    // yearCode '0000' (最新データ) は常に取得
+                    // それ以外は force フラグまたはファイルが存在しない場合のみ取得
+                    const shouldFetch = yearCode === '0000' || this.force || !this.rawJsonRepository.fileExists(yearCode, fileName);
+
+                    if (!shouldFetch) {
                         this.logger.info(`File already exists. Skipping fetch: ${yearCode}/${fileName}`);
+                        // 既存ファイルからデータを読み込む
+                        const existingData = await this.rawJsonRepository.load(yearCode, fileName);
+                        if (existingData) {
+                            const key = `${yearCode}_${fileName}`;
+                            const dataWithMeta = new Map<string, any>();
+                            if (existingData.item) {
+                                for (const [code, value] of Object.entries(existingData.item)) {
+                                    dataWithMeta.set(code, { value, meta: existingData.meta });
+                                }
+                            }
+                            allData.set(key, dataWithMeta);
+                        }
                         continue;
                     }
 
+                    this.logger.info(`Fetching: ${yearCode}/${fileName}`, { yearCode, fileName });
                     const data = await this.irbankClient.fetchFinancialData(yearCode, fileName);
 
                     if (data) {
-                        allRawData.push({ yearCode, fileName, data });
+                        // 即座に保存
+                        await this.rawJsonRepository.save(yearCode, fileName, data);
+                        this.logger.info(`Saved immediately: ${yearCode}/${fileName}`);
+
                         const key = `${yearCode}_${fileName}`;
 
                         // メタデータとitemデータの両方を保存
@@ -165,7 +175,7 @@ export class FetchFundamentalsService {
             throw error;
         }
 
-        return { allData, allRawData };
+        return allData;
     }
 
     /**
