@@ -47,7 +47,7 @@ async function main() {
   } else {
     logger.info('Using IrbankClient');
     // Default 30s interval for this batch
-    irbankClient = new IrbankClient(logger, { minIntervalMs: 30000 });
+    irbankClient = new IrbankClient(logger, { minIntervalMs: 300000 });
   }
 
   const stockRepository = new StockRepository(logger);
