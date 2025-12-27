@@ -12,9 +12,15 @@
     "run:fetch-past-fundamentals": "pnpm build && node dist/run-fetch-past-fundamentals.js",
     "run:fetch-latest-fundamentals": "pnpm build && node dist/run-fetch-latest-fundamentals.js",
     "run:consolidate-data": "pnpm build && node dist/run-consolidate-data.js",
+    "run:consolidate-companies": "pnpm build && node dist/run-consolidate-data.js --table companies",
+    "run:consolidate-prices": "pnpm build && node dist/run-consolidate-data.js --table prices",
+    "run:consolidate-fundamentals": "pnpm build && node dist/run-consolidate-data.js --table fundamentals",
+    "run:consolidate-edinet": "pnpm build && node dist/run-consolidate-data.js --table edinet",
+    "run:consolidate-large-shareholdings": "pnpm build && node dist/run-consolidate-data.js --table large_shareholdings",
     "run:upload-duckdb-to-r2-rclone": "pnpm build && node dist/run-upload-duckdb-to-r2-rclone.js",
     "run:fetch-edinet": "pnpm build && node dist/run-fetch-edinet.js",
-    "run:seed-edinet": "pnpm build && node dist/run-seed-edinet.js"
+    "run:seed-edinet": "pnpm build && node dist/run-seed-edinet.js",
+    "run:fetch-large-shareholdings": "pnpm build && node dist/run-fetch-large-shareholdings.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.927.0",
@@ -26,6 +32,7 @@
     "edinet-ts": "^1.1.16",
     "parquetjs": "^0.11.2",
     "stock-analyze-domain": "workspace:*",
+    "unzipper": "^0.12.3",
     "xlsx": "^0.18.5",
     "yahoo-finance2": "^3.10.0",
     "yargs": "^18.0.0"
@@ -33,6 +40,7 @@
   "devDependencies": {
     "@types/node": "^24.6.0",
     "@types/parquetjs": "^0.10.6",
+    "@types/unzipper": "^0.10.11",
     "@types/xlsx": "^0.0.36",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",

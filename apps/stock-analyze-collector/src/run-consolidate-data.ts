@@ -10,9 +10,29 @@ import { LoggerService } from './services/logger.service.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+import yargs from 'yargs';
+import { hideBin } from 'yargs/helpers';
+
 async function main() {
     const logger = new LoggerService();
+    // Parse arguments
+    const argv = await yargs(hideBin(process.argv))
+        .option('table', {
+            alias: 't',
+            type: 'string',
+            description: 'Execute only for the specified table (e.g. edinet, prices)',
+        })
+        .help()
+        .parse();
+
+
+
+    const targetTable = argv.table;
+
     logger.info('--- バッチ開始: DuckDBへのデータ統合 (SDF) ---');
+    if (targetTable) {
+        logger.info(`対象テーブル: ${targetTable}`);
+    }
 
     // パスの定義
     const projectRoot = path.resolve(__dirname, '..');
@@ -24,6 +44,9 @@ async function main() {
 
     try {
         // Prepare stock_list.ndjson for SDF
+        // Only run if we are running the whole thing OR if the user specifically requested stock_list related tables?
+        // Actually, converting stock_list.json to NDJSON is fast and safe to do every time generally.
+        // It acts as a source for 'stock_list' table.
         const stockListJsonPath = path.resolve(__dirname, '../../../data/master/stock_list.json');
         const stockListNdjsonPath = path.resolve(__dirname, '../../../data/master/stock_list.ndjson');
 
@@ -44,8 +67,15 @@ async function main() {
 
         // SDFの実行
         logger.info('SDFを実行中...');
+
+        let command = `${sdfBin} run`;
+        if (targetTable) {
+            command += ` ${targetTable}`;
+        }
+
         // execSyncは標準出力を継承して実行
-        execSync(`${sdfBin} run --workspace ${workspaceDir}`, { stdio: 'inherit' });
+        logger.info(`コマンド実行: ${command}`);
+        execSync(command, { stdio: 'inherit', cwd: workspaceDir });
 
         logger.info('--- バッチ終了: SDF実行完了 ---');
 

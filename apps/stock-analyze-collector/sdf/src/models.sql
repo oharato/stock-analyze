@@ -11,8 +11,8 @@ CREATE TABLE edinet AS
 SELECT 
     ticker as code,
     year,
-    date,
-    docId,
+    submit_date as date,
+    doc_id,
     business_risks,
     business_risks_vector,
     mda,
@@ -30,6 +30,19 @@ SELECT
     earnings_per_share,
     book_value_per_share,
     equity_to_total_assets_ratio,
-    rate_of_return_on_equity,
-    filename
+    rate_of_return_on_equity
 FROM edinet_raw;
+
+CREATE TABLE large_shareholdings AS
+SELECT
+    doc_id,
+    submit_date as date,
+    filer_name,
+    ticker as code,
+    doc_description,
+    doc_type_code,
+    holding_purpose,
+    holding_ratio,
+    prev_holding_ratio,
+    total_shares_held
+FROM large_shareholdings_raw;

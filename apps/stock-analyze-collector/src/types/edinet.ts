@@ -7,8 +7,7 @@ export interface EdinetDataWithVectors {
     submit_date?: string;
 
     ticker: string;
-    docId: string;  // Keep for backward compatibility
-    date: string;
+
     year: number;
 
     // Qualitative - All 6 QualitativeInfo fields

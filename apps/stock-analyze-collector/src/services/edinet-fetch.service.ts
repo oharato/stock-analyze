@@ -303,7 +303,7 @@ export class EdinetFetchService {
 
         const saveData = await this.buildSaveData(ticker, doc.docID, docDate, commonMetadata, qualInfo, metrics, shareholders);
 
-        fs.writeFileSync(filePath, JSON.stringify(saveData, null, 2), 'utf-8');
+        fs.writeFileSync(filePath, JSON.stringify(saveData), 'utf-8');
         this.logger.info(`Saved data with vectors to ${filePath}`);
         return true;
     }
@@ -421,8 +421,6 @@ export class EdinetFetchService {
             submit_date: commonMetadata.submitDate,
 
             ticker,
-            docId: docId,
-            date: docDate,
             year: new Date(docDate).getFullYear(),
 
             // Qualitative - All 6 fields
