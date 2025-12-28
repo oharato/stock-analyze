@@ -81,6 +81,7 @@ table td {
     display: -webkit-box;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 3;
+    line-clamp: 3;
     overflow: hidden;
     word-break: break-all;
 }
@@ -275,11 +276,14 @@ dl.details-grid {
 
 /* Chart Mode in List */
 .chart-mode-cell {
-    min-width: 400px;
+    width: 100%;
+    min-width: 450px;
     height: 200px;
     padding: 0.5rem;
     background: #1a212c;
     border-radius: 4px;
+    position: relative;
+    overflow: hidden;
 }
 
 .name-column {

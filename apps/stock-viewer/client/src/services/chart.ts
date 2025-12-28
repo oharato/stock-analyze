@@ -7,6 +7,7 @@ import { PriceData } from '../types';
  */
 export class StockChart {
     private chart: IChartApi | null = null;
+    private resizeObserver: ResizeObserver | null = null;
     private candlestickSeries: ISeriesApi<'Candlestick'> | null = null;
     private volumeSeries: ISeriesApi<'Histogram'> | null = null;
     private sma5Series: ISeriesApi<'Line'> | null = null;
@@ -21,7 +22,13 @@ export class StockChart {
             this.destroy();
         }
 
+        // コンテナの現在のサイズを取得
+        const width = container.clientWidth || 400;
+        const height = container.clientHeight || 200;
+
         this.chart = createChart(container, {
+            width,
+            height,
             layout: {
                 background: { color: '#131722' },
                 textColor: '#d1d4dc',
@@ -39,6 +46,14 @@ export class StockChart {
                 secondsVisible: false,
             },
         });
+
+        // ResizeObserver でコンテナのリサイズを監視
+        this.resizeObserver = new ResizeObserver(entries => {
+            if (entries.length === 0 || !this.chart) return;
+            const { width, height } = entries[0].contentRect;
+            this.chart.resize(width, height);
+        });
+        this.resizeObserver.observe(container);
 
         // ローソク足シリーズ
         this.candlestickSeries = this.chart.addSeries(CandlestickSeries, {
@@ -179,6 +194,10 @@ export class StockChart {
      * チャートを破棄します。
      */
     destroy(): void {
+        if (this.resizeObserver) {
+            this.resizeObserver.disconnect();
+            this.resizeObserver = null;
+        }
         if (this.chart) {
             this.chart.remove();
             this.chart = null;
