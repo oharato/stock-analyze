@@ -36,6 +36,12 @@
             <div class="filter-row">
                 <input type="search" x-model="filterQuery" @input.debounce.300ms="applyFilter()"
                     placeholder="銘柄コードまたは会社名で検索...">
+                <select x-model="chartMode" @change="onChartModeChange()">
+                    <option value="none">チャート表示: なし</option>
+                    <option value="daily">チャート表示: 日足</option>
+                    <option value="weekly">チャート表示: 週足</option>
+                    <option value="monthly">チャート表示: 月足</option>
+                </select>
                 <button type="button" class="secondary" @click="clearAllFilters()">クリア</button>
             </div>
             <div class="filter-dropdowns">
@@ -73,16 +79,36 @@
                     <table>
                         <thead>
                             <tr>
-                                <template x-for="col in columns" :key="col">
-                                    <th x-text="col"></th>
+                                <th>code</th>
+                                <th class="name-column">name</th>
+                                <template x-if="chartMode === 'none'">
+                                    <template x-for="col in columns.filter(c => !['code', 'name'].includes(c))"
+                                        :key="col">
+                                        <th x-text="col"></th>
+                                    </template>
+                                </template>
+                                <template x-if="chartMode !== 'none'">
+                                    <th>チャート</th>
                                 </template>
                             </tr>
                         </thead>
                         <tbody>
-                            <template x-for="row in data" :key="JSON.stringify(row)">
+                            <template x-for="row in data" :key="row.code">
                                 <tr @click="openDetails(row)">
-                                    <template x-for="col in columns" :key="col">
-                                        <td x-text="Utils.formatValue(row[col])"></td>
+                                    <td x-text="row.code"></td>
+                                    <td class="name-column" x-text="row.name"></td>
+                                    <template x-if="chartMode === 'none'">
+                                        <template x-for="col in columns.filter(c => !['code', 'name'].includes(c))"
+                                            :key="col">
+                                            <td x-text="Utils.formatValue(row[col])"></td>
+                                        </template>
+                                    </template>
+                                    <template x-if="chartMode !== 'none'">
+                                        <td>
+                                            <div class="chart-mode-cell" :id="'chart-container-' + row.code">
+                                                <div class="chart-container"></div>
+                                            </div>
+                                        </td>
                                     </template>
                                 </tr>
                             </template>

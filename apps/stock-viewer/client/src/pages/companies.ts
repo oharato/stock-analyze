@@ -1,4 +1,4 @@
-import { initShared, Alpine, Api, Chart } from '../init';
+import { initShared, Alpine, Api, StockChart, Chart, Utils } from '../init';
 import { SelectedFilters } from '../types';
 
 /**
@@ -17,6 +17,8 @@ const CompaniesPage = () => ({
     filterQuery: '',
     filterOptions: { market: [], sector33: [], sector17: [], scale: [] } as any,
     selectedFilters: { market: [], sector33: [], sector17: [], scale: [] } as SelectedFilters,
+    chartMode: 'none',
+    chartInstances: [] as any[],
 
     async init() {
         try {
@@ -29,17 +31,64 @@ const CompaniesPage = () => ({
 
     async applyFilter() {
         this.loadingData = true;
+        this.destroyCharts();
         try {
             const result = await Api.searchCompanies(this.filterQuery, this.selectedFilters, this.page, this.limit);
             this.data = result.data;
             this.columns = result.columns;
             this.totalRecords = result.total;
             this.totalPages = result.totalPages;
+
+            if (this.chartMode !== 'none') {
+                // DOMの更新を待ってからチャートを描画
+                Alpine.nextTick(() => {
+                    this.renderCharts();
+                });
+            }
         } catch (e) {
             console.error(e);
         } finally {
             this.loadingData = false;
         }
+    },
+
+    onChartModeChange() {
+        this.page = 1;
+        this.applyFilter();
+    },
+
+    async renderCharts() {
+        for (const row of this.data) {
+            const containerId = `chart-container-${row.code}`;
+            const container = document.getElementById(containerId);
+            if (!container) continue;
+
+            const target = container.querySelector('.chart-container') as HTMLElement;
+            if (!target) continue;
+
+            const chart = new StockChart();
+            chart.init(target);
+            this.chartInstances.push(chart);
+
+            try {
+                let priceData: any[] = [];
+                if (this.chartMode === 'daily') {
+                    priceData = await Api.fetchPriceData(row.code);
+                } else if (this.chartMode === 'weekly') {
+                    priceData = await Api.fetchWeeklyPriceData(row.code);
+                } else if (this.chartMode === 'monthly') {
+                    priceData = await Api.fetchMonthlyPriceData(row.code);
+                }
+                chart.setData(priceData);
+            } catch (e) {
+                console.error(`Failed to fetch chart data for ${row.code}`, e);
+            }
+        }
+    },
+
+    destroyCharts() {
+        this.chartInstances.forEach(c => c.destroy());
+        this.chartInstances = [];
     },
 
     toggleFilter(type: keyof SelectedFilters, value: string) {
@@ -53,6 +102,7 @@ const CompaniesPage = () => ({
     clearAllFilters() {
         this.filterQuery = '';
         this.selectedFilters = { market: [], sector33: [], sector17: [], scale: [] };
+        this.chartMode = 'none';
         this.page = 1;
         this.applyFilter();
     },

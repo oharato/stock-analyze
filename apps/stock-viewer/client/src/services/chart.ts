@@ -188,5 +188,5 @@ export class StockChart {
     }
 }
 
-// 後方互換性のためのシングルトンインスタンス
-export const Chart = new StockChart();
+// シングルトンインスタンス（後方互換性用）
+export const ChartInstance = new StockChart();

@@ -48,7 +48,7 @@ export const Api = {
                 ) 
                 WHERE rn = 1
                 ORDER BY date DESC 
-                LIMIT 300
+                LIMIT 120
             `;
             const res = await fetch(`/api/query?sql=${encodeURIComponent(sql)}`);
             if (!res.ok) throw new Error(`API Error: ${res.status}`);
