@@ -66,15 +66,23 @@ main {
 
 table {
     width: 100%;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
+    border-collapse: collapse;
 }
 
-table tbody tr {
-    cursor: pointer;
+table th,
+table td {
+    vertical-align: top;
+    padding: 0.5rem;
 }
 
-table tbody tr:hover {
-    background: var(--pico-table-row-stripped-background-color);
+/* Line clamping for long text in cells */
+.line-clamp {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    overflow: hidden;
+    word-break: break-all;
 }
 
 /* Pagination */
@@ -96,29 +104,40 @@ table tbody tr:hover {
 
 /* Dialog/Modal */
 dialog {
-    max-width: 800px;
-    width: 90%;
+    max-width: 1000px;
+    width: 95%;
 }
 
 dialog article {
     margin: 0;
+    max-height: 85vh;
+    overflow-y: auto;
 }
 
 /* Details list */
-dl {
+dl.details-grid {
     display: grid;
-    grid-template-columns: 200px 1fr;
-    gap: var(--pico-spacing);
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+    margin: 0;
 }
 
-dt {
+.details-grid dt {
     font-weight: bold;
     color: var(--pico-muted-color);
+    background: var(--pico-table-row-stripped-background-color);
+    padding: 0.5rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
 }
 
-dd {
+.details-grid dd {
     margin: 0;
+    padding: 0.5rem;
     word-break: break-word;
+    font-size: 0.9rem;
+    white-space: pre-wrap;
+    /* Preserve newlines in disclosures */
 }
 
 /* Loading state */
@@ -141,7 +160,7 @@ dd {
         border-bottom: 1px solid var(--pico-muted-border-color);
     }
 
-    dl {
+    dl.details-grid {
         grid-template-columns: 1fr;
     }
 }

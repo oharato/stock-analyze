@@ -29,22 +29,26 @@ const CompanyPage = () => ({
             this.details = await Api.fetchCompanyDetails(this.code);
             this.loading = false;
 
-            // チャートの初期化とデータセット
+            // チャートを順番に描画してメインスレッドの負荷を分散 (Violation対策)
             Alpine.nextTick(async () => {
-                // 日足
+                // 1. 日足 (最優先)
                 const dailyData = await Api.fetchPriceData(this.code);
                 this.charts.daily.init(document.getElementById('daily-chart')!);
                 this.charts.daily.setData(dailyData);
 
-                // 週足
-                const weeklyData = await Api.fetchWeeklyPriceData(this.code);
-                this.charts.weekly.init(document.getElementById('weekly-chart')!);
-                this.charts.weekly.setData(weeklyData);
+                // 2. 週足 (少し遅らせる)
+                setTimeout(async () => {
+                    const weeklyData = await Api.fetchWeeklyPriceData(this.code);
+                    this.charts.weekly.init(document.getElementById('weekly-chart')!);
+                    this.charts.weekly.setData(weeklyData);
+                }, 100);
 
-                // 月足
-                const monthlyData = await Api.fetchMonthlyPriceData(this.code);
-                this.charts.monthly.init(document.getElementById('monthly-chart')!);
-                this.charts.monthly.setData(monthlyData);
+                // 3. 月足 (さらに遅らせる)
+                setTimeout(async () => {
+                    const monthlyData = await Api.fetchMonthlyPriceData(this.code);
+                    this.charts.monthly.init(document.getElementById('monthly-chart')!);
+                    this.charts.monthly.setData(monthlyData);
+                }, 200);
             });
         } catch (e) {
             console.error('Failed to load company details', e);

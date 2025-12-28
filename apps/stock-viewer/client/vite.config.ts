@@ -4,6 +4,7 @@ import { resolve } from 'path';
 export default defineConfig({
     root: '.',
     base: '/',
+    publicDir: 'public',
     build: {
         outDir: '../dist/client',
         emptyOutDir: true,

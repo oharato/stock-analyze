@@ -7,6 +7,7 @@
     <title>Fundamentals - Stock Viewer</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
     <link rel="stylesheet" href="/styles/custom.css">
+    <link rel="icon" href="/favicon.ico">
     <style>
         [x-cloak] {
             display: none !important;
@@ -14,7 +15,7 @@
     </style>
 </head>
 
-<body x-data="tablePage" x-init="init('fundamentals')">
+<body x-data="tablePage" x-init="init()">
     <nav class="sidebar" x-data="sidebar" x-init="init()">
         <h2>Stock Viewer</h2>
         <ul>
@@ -42,9 +43,11 @@
                                     <th x-text="col"></th>
                                 </template></tr>
                         </thead>
-                        <tbody><template x-for="row in data" :key="JSON.stringify(row)">
+                        <tbody><template x-for="(row, index) in data" :key="JSON.stringify(row)">
                                 <tr @click="openDetails(row)"><template x-for="col in columns" :key="col">
-                                        <td x-text="Utils.formatValue(row[col])"></td>
+                                        <td>
+                                            <div class="line-clamp" x-text="Utils.formatValue(row[col])"></div>
+                                        </td>
                                     </template></tr>
                             </template></tbody>
                     </table>
@@ -66,9 +69,11 @@
                 <a x-show="selectedRow.code" :href="'/company?code=' + selectedRow.code" class="button"
                     style="margin-bottom: 0;">詳細ページへ</a>
             </header>
-            <dl><template x-for="(value, key) in selectedRow" :key="key">
-                    <dt x-text="key"></dt>
-                    <dd x-text="Utils.formatValue(value)"></dd>
+            <dl class="details-grid"><template x-for="(value, key) in selectedRow" :key="key">
+                    <div>
+                        <dt x-text="key"></dt>
+                        <dd x-text="Utils.formatValue(value)"></dd>
+                    </div>
                 </template></dl>
         </article>
     </dialog>

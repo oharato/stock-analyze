@@ -151,13 +151,27 @@ export const Api = {
     },
 
     /**
+     * edinetテーブルをベクトル検索します。
+     */
+    async searchEdinet(query: string, target: string = 'business_risks', page: number = 1, limit: number = 50): Promise<TableDataResponse> {
+        try {
+            const res = await fetch(`/api/search/edinet?q=${encodeURIComponent(query)}&target=${target}&page=${page}&limit=${limit}`);
+            if (!res.ok) throw new Error(`API Error: ${res.status}`);
+            return await res.json();
+        } catch (e) {
+            console.error("ベクトル検索に失敗しました", e);
+            throw e;
+        }
+    },
+
+    /**
      * 会社に関連するすべての情報を取得します。
      */
     async fetchCompanyDetails(code: string): Promise<any> {
         try {
             const [company, edinet, fundamentals, largeShareholdings] = await Promise.all([
                 this.executeQuery(`SELECT * FROM companies WHERE code = '${code}'`),
-                this.executeQuery(`SELECT * FROM edinet WHERE code = '${code}' ORDER BY date DESC`),
+                this.executeQuery(`SELECT * FROM edinet WHERE ticker = '${code}' ORDER BY date DESC`),
                 this.executeQuery(`SELECT * FROM fundamentals WHERE code = '${code}' ORDER BY year DESC`),
                 this.executeQuery(`SELECT * FROM large_shareholdings WHERE ticker = '${code}' ORDER BY submit_date DESC`),
             ]);
