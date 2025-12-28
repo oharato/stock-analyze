@@ -7,6 +7,8 @@ body {
     gap: 0;
     padding: 0;
     margin: 0;
+    height: 100vh;
+    overflow: hidden;
 }
 
 /* Sidebar */
@@ -51,23 +53,54 @@ nav.sidebar button {
 /* Main content */
 main {
     padding: var(--pico-spacing);
-    min-height: 100vh;
+    height: 100vh;
+    max-height: 100vh;
     min-width: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.content-area {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    /* Important for nested flex scroll */
+}
+
+.scroll-area {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
 }
 
 /* Table container */
 .table-container {
-    overflow-x: auto;
+    overflow: auto;
+    flex: 1;
+    min-height: 0;
     width: 100%;
-    max-width: 100%;
     margin: var(--pico-spacing) 0;
-    display: block;
+    border: 1px solid var(--pico-muted-border-color);
+    border-radius: var(--pico-border-radius);
+    background: var(--pico-background-color);
 }
 
 table {
     width: 100%;
     font-size: 0.85rem;
-    border-collapse: collapse;
+    border-collapse: separate;
+    /* Required for sticky border-bottom */
+    border-spacing: 0;
+}
+
+table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--pico-background-color);
+    border-bottom: 1px solid var(--pico-muted-border-color);
 }
 
 table th,

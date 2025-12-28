@@ -34,28 +34,30 @@
         <template x-if="loadingData">
             <p aria-busy="true">読み込み中...</p>
         </template>
+
+        <div class="filter-row" style="margin-bottom: 1rem; display: flex; gap: 1rem; align-items: flex-end;">
+            <div style="flex: 0 0 200px;">
+                <label for="vectorTarget" style="margin-bottom: 0.5rem; font-size: 0.8rem;">検索対象セクション</label>
+                <select id="vectorTarget" x-model="vectorTarget" style="margin-bottom: 0;">
+                    <option value="business_policy">経営方針・環境</option>
+                    <option value="business_risks">事業等のリスク</option>
+                    <option value="mda">MD&A（財政状態分析）</option>
+                    <option value="business_description">事業の内容</option>
+                    <option value="company_history">沿革</option>
+                    <option value="research_and_development">研究開発活動</option>
+                    <option value="corporate_governance">コーポレートガバナンス</option>
+                </select>
+            </div>
+            <div style="flex: 1;">
+                <label for="vectorQuery" style="margin-bottom: 0.5rem; font-size: 0.8rem;">検索キーワード・文章</label>
+                <input id="vectorQuery" type="text" x-model="vectorQuery" placeholder="文章で検索（例: 半導体不足の影響）"
+                    @keyup.enter="applyVectorSearch()" style="margin-bottom: 0;">
+            </div>
+            <button @click="applyVectorSearch()" style="white-space: nowrap; margin-bottom: 0;">ベクトル検索</button>
+        </div>
+
         <template x-if="columns.length > 0">
-            <div>
-                <div class="filter-row" style="margin-bottom: 1rem; display: flex; gap: 1rem; align-items: flex-end;">
-                    <div style="flex: 0 0 200px;">
-                        <label for="vectorTarget" style="margin-bottom: 0.5rem; font-size: 0.8rem;">検索対象セクション</label>
-                        <select id="vectorTarget" x-model="vectorTarget" style="margin-bottom: 0;">
-                            <option value="business_policy">経営方針・環境</option>
-                            <option value="business_risks">事業等のリスク</option>
-                            <option value="mda">MD&A（財政状態分析）</option>
-                            <option value="business_description">事業の内容</option>
-                            <option value="company_history">沿革</option>
-                            <option value="research_and_development">研究開発活動</option>
-                            <option value="corporate_governance">コーポレートガバナンス</option>
-                        </select>
-                    </div>
-                    <div style="flex: 1;">
-                        <label for="vectorQuery" style="margin-bottom: 0.5rem; font-size: 0.8rem;">検索キーワード・文章</label>
-                        <input id="vectorQuery" type="text" x-model="vectorQuery" placeholder="文章で検索（例: 半導体不足の影響）"
-                            @keyup.enter="applyVectorSearch()" style="margin-bottom: 0;">
-                    </div>
-                    <button @click="applyVectorSearch()" style="white-space: nowrap; margin-bottom: 0;">ベクトル検索</button>
-                </div>
+            <div class="content-area">
                 <div class="table-container">
                     <table>
                         <thead>
