@@ -94,10 +94,17 @@ app.get('/api/query', async (c) => {
 // Serve static files
 app.get('/*', async (c) => {
     const urlPath = new URL(c.req.url).pathname;
-    let filePath = path.join(process.cwd(), 'public', urlPath);
+    const staticDir = path.join(process.cwd(), 'dist', 'client');
+    let filePath = path.join(staticDir, urlPath);
 
     if (urlPath === '/' || urlPath === '') {
-        filePath = path.join(process.cwd(), 'public', 'index.html');
+        filePath = path.join(staticDir, 'index.html');
+    } else if (!path.extname(urlPath)) {
+        // もし拡張子がない場合は.htmlを付与して試行（/companies -> /companies.html）
+        const htmlPath = filePath + '.html';
+        if (fs.existsSync(htmlPath)) {
+            filePath = htmlPath;
+        }
     }
 
     if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
@@ -106,13 +113,13 @@ app.get('/*', async (c) => {
         const contentType = {
             '.html': 'text/html',
             '.js': 'text/javascript',
-            '.css': 'text/css'
+            '.css': 'text/css',
+            '.png': 'image/png',
+            '.jpg': 'image/jpeg',
+            '.svg': 'image/svg+xml'
         }[ext] || 'application/octet-stream';
 
         c.header('Content-Type', contentType);
-        c.header('Cache-Control', 'no-cache, no-store, must-revalidate');
-        c.header('Pragma', 'no-cache');
-        c.header('Expires', '0');
         return c.body(content);
     }
     return c.text('Not Found', 404);

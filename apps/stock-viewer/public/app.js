@@ -22,6 +22,21 @@ const initApp = () => {
         totalPages: 0,        // 総ページ数
         showDetails: false,   // 詳細モーダル表示フラグ
         selectedRow: {},      // 選択行データ
+        filterQuery: '',      // 検索クエリ
+
+        // フィルタ用ステート
+        filterOptions: {
+            market: [],
+            sector33: [],
+            sector17: [],
+            scale: []
+        },
+        selectedFilters: {
+            market: [],
+            sector33: [],
+            sector17: [],
+            scale: []
+        },
 
         /**
          * 初期化処理
@@ -72,11 +87,101 @@ const initApp = () => {
                 this.columns = result.columns;
                 this.totalRecords = result.total;
                 this.totalPages = result.totalPages;
+
+                // companiesテーブルの場合、フィルタオプションを取得
+                if (table === 'companies' && this.filterOptions.market.length === 0) {
+                    await this.loadFilterOptions();
+                }
             } catch (e) {
                 // エラー発生時のUI更新など
             } finally {
                 this.loadingData = false;
             }
+        },
+
+        /**
+         * フィルタオプション（選択肢）を読み込みます。
+         */
+        async loadFilterOptions() {
+            try {
+                this.filterOptions = await Api.fetchFilterOptions();
+            } catch (e) {
+                console.error('フィルタオプションの読み込みに失敗しました', e);
+            }
+        },
+
+        /**
+         * フィルタを適用してcompaniesテーブルを検索します。
+         */
+        async applyFilter() {
+            if (this.currentTable !== 'companies') return;
+
+            // フィルタが全て空の場合は通常のテーブル読み込み
+            const hasTextFilter = this.filterQuery.trim().length > 0;
+            const hasDropdownFilter =
+                this.selectedFilters.market.length > 0 ||
+                this.selectedFilters.sector33.length > 0 ||
+                this.selectedFilters.sector17.length > 0 ||
+                this.selectedFilters.scale.length > 0;
+
+            if (!hasTextFilter && !hasDropdownFilter) {
+                await this.loadTable('companies', 1);
+                return;
+            }
+
+            this.loadingData = true;
+            this.page = 1;
+            try {
+                const result = await Api.searchCompanies(
+                    this.filterQuery,
+                    this.selectedFilters,
+                    this.page,
+                    this.limit
+                );
+                this.data = result.data;
+                this.columns = result.columns;
+                this.totalRecords = result.total;
+                this.totalPages = result.totalPages;
+            } catch (e) {
+                // エラー発生時のUI更新など
+            } finally {
+                this.loadingData = false;
+            }
+        },
+
+        /**
+         * フィルタ選択の変更を処理します。
+         */
+        toggleFilter(type, value) {
+            const index = this.selectedFilters[type].indexOf(value);
+            if (index === -1) {
+                this.selectedFilters[type].push(value);
+            } else {
+                this.selectedFilters[type].splice(index, 1);
+            }
+            this.applyFilter();
+        },
+
+        /**
+         * 指定したフィルタタイプの選択をクリアします。
+         */
+        clearFilter(type) {
+            this.selectedFilters[type] = [];
+            this.applyFilter();
+        },
+
+        /**
+         * 全てのフィルタをクリアします。
+         */
+        clearAllFilters() {
+            this.filterQuery = '';
+            this.selectedFilters = {
+                market: [],
+                sector33: [],
+                sector17: [],
+                scale: []
+            };
+            this.loadTable('companies', 1);
         },
 
         /**

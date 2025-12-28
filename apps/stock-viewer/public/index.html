@@ -42,6 +42,97 @@
         </template>
         <template x-if="currentTable && columns.length > 0">
             <div>
+                <!-- 検索フィルタ (companiesテーブル用) -->
+                <template x-if="currentTable === 'companies'">
+                    <div class="filter-container">
+                        <div class="filter-row">
+                            <input type="search" x-model="filterQuery" @input.debounce.300ms="applyFilter()"
+                                placeholder="銘柄コードまたは会社名で検索...">
+                            <button type="button" class="secondary" @click="clearAllFilters()">クリア</button>
+                        </div>
+                        <div class="filter-dropdowns">
+                            <!-- Market Filter -->
+                            <details class="dropdown">
+                                <summary>
+                                    市場
+                                    <span x-show="selectedFilters.market.length > 0"
+                                        x-text="'(' + selectedFilters.market.length + ')'"></span>
+                                </summary>
+                                <ul>
+                                    <template x-for="option in filterOptions.market" :key="option">
+                                        <li>
+                                            <label>
+                                                <input type="checkbox"
+                                                    :checked="selectedFilters.market.includes(option)"
+                                                    @change="toggleFilter('market', option)">
+                                                <span x-text="option"></span>
+                                            </label>
+                                        </li>
+                                    </template>
+                                </ul>
+                            </details>
+                            <!-- Sector33 Filter -->
+                            <details class="dropdown">
+                                <summary>
+                                    業種(33)
+                                    <span x-show="selectedFilters.sector33.length > 0"
+                                        x-text="'(' + selectedFilters.sector33.length + ')'"></span>
+                                </summary>
+                                <ul>
+                                    <template x-for="option in filterOptions.sector33" :key="option">
+                                        <li>
+                                            <label>
+                                                <input type="checkbox"
+                                                    :checked="selectedFilters.sector33.includes(option)"
+                                                    @change="toggleFilter('sector33', option)">
+                                                <span x-text="option"></span>
+                                            </label>
+                                        </li>
+                                    </template>
+                                </ul>
+                            </details>
+                            <!-- Sector17 Filter -->
+                            <details class="dropdown">
+                                <summary>
+                                    業種(17)
+                                    <span x-show="selectedFilters.sector17.length > 0"
+                                        x-text="'(' + selectedFilters.sector17.length + ')'"></span>
+                                </summary>
+                                <ul>
+                                    <template x-for="option in filterOptions.sector17" :key="option">
+                                        <li>
+                                            <label>
+                                                <input type="checkbox"
+                                                    :checked="selectedFilters.sector17.includes(option)"
+                                                    @change="toggleFilter('sector17', option)">
+                                                <span x-text="option"></span>
+                                            </label>
+                                        </li>
+                                    </template>
+                                </ul>
+                            </details>
+                            <!-- Scale Filter -->
+                            <details class="dropdown">
+                                <summary>
+                                    規模
+                                    <span x-show="selectedFilters.scale.length > 0"
+                                        x-text="'(' + selectedFilters.scale.length + ')'"></span>
+                                </summary>
+                                <ul>
+                                    <template x-for="option in filterOptions.scale" :key="option">
+                                        <li>
+                                            <label>
+                                                <input type="checkbox" :checked="selectedFilters.scale.includes(option)"
+                                                    @change="toggleFilter('scale', option)">
+                                                <span x-text="option"></span>
+                                            </label>
+                                        </li>
+                                    </template>
+                                </ul>
+                            </details>
+                        </div>
+                    </div>
+                </template>
                 <div class="table-container">
                     <table>
                         <thead>

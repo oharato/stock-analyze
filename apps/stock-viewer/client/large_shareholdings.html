@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Large Shareholdings - Stock Viewer</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+    <link rel="stylesheet" href="/styles/custom.css">
+    <style>
+        [x-cloak] {
+            display: none !important;
+        }
+    </style>
+</head>
+
+<body x-data="tablePage" x-init="init('large_shareholdings')">
+    <nav class="sidebar" x-data="sidebar" x-init="init()">
+        <h2>Stock Viewer</h2>
+        <ul>
+            <template x-for="table in tables" :key="table">
+                <li>
+                    <button class="outline" :class="table === 'large_shareholdings' ? '' : 'secondary'"
+                        @click="navigate(table)" x-text="table"></button>
+                </li>
+            </template>
+        </ul>
+    </nav>
+    <main>
+        <header>
+            <h1>大量保有報告書</h1>
+        </header>
+        <template x-if="loadingData">
+            <p aria-busy="true">読み込み中...</p>
+        </template>
+        <template x-if="columns.length > 0">
+            <div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr><template x-for="col in columns" :key="col">
+                                    <th x-text="col"></th>
+                                </template></tr>
+                        </thead>
+                        <tbody><template x-for="row in data" :key="JSON.stringify(row)">
+                                <tr @click="openDetails(row)"><template x-for="col in columns" :key="col">
+                                        <td x-text="Utils.formatValue(row[col])"></td>
+                                    </template></tr>
+                            </template></tbody>
+                    </table>
+                </div>
+                <nav class="pagination">
+                    <ul>
+                        <li><button @click="prevPage" :disabled="page <= 1">前へ</button></li>
+                        <li x-text="page + ' / ' + totalPages"></li>
+                        <li><button @click="nextPage" :disabled="page >= totalPages">次へ</button></li>
+                    </ul>
+                </nav>
+            </div>
+        </template>
+    </main>
+    <dialog :open="showDetails" @click.self="closeDetails()">
+        <article>
+            <header><button aria-label="Close" @click="closeDetails()"></button>
+                <h3>詳細情報</h3>
+                <a x-show="selectedRow.code" :href="'/company?code=' + selectedRow.code" class="button"
+                    style="margin-bottom: 0;">詳細ページへ</a>
+            </header>
+            <dl><template x-for="(value, key) in selectedRow" :key="key">
+                    <dt x-text="key"></dt>
+                    <dd x-text="Utils.formatValue(value)"></dd>
+                </template></dl>
+        </article>
+    </dialog>
+    <script type="module" src="/src/pages/large_shareholdings.ts"></script>
+</body>
+
+</html>

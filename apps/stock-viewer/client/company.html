@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Company Details - Stock Viewer</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+    <link rel="stylesheet" href="/styles/custom.css">
+    <style>
+        [x-cloak] {
+            display: none !important;
+        }
+
+        .chart-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .chart-box {
+            background: #1a212c;
+            border-radius: 8px;
+            padding: 1rem;
+        }
+
+        .section-card {
+            margin-bottom: 2rem;
+        }
+
+        .table-container {
+            overflow-x: auto;
+            max-width: 100%;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+        }
+
+        table {
+            width: 100%;
+            white-space: nowrap;
+        }
+
+        .data-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+
+<body x-data="companyPage" x-init="init()">
+    <nav class="sidebar" x-data="sidebar" x-init="init()">
+        <h2>Stock Viewer</h2>
+        <ul>
+            <li><button class="outline secondary" @click="window.location.href='/companies'">一覧に戻る</button></li>
+        </ul>
+    </nav>
+
+    <main>
+        <template x-if="loading">
+            <p aria-busy="true">データを読み込み中...</p>
+        </template>
+
+        <template x-if="!loading && details">
+            <div>
+                <header>
+                    <h1 x-text="details.company.name + ' (' + details.company.code + ')'"></h1>
+                    <div class="grid">
+                        <div><strong>市場:</strong> <span x-text="details.company.market"></span></div>
+                        <div><strong>業種:</strong> <span x-text="details.company.sector33"></span></div>
+                        <div><strong>規模:</strong> <span x-text="details.company.scale"></span></div>
+                    </div>
+                </header>
+
+                <section class="section-card">
+                    <h2>株価チャート</h2>
+                    <div class="chart-grid">
+                        <div class="chart-box">
+                            <h3>日足</h3>
+                            <div id="daily-chart" style="height: 300px;"></div>
+                        </div>
+                        <div class="chart-box">
+                            <h3>週足</h3>
+                            <div id="weekly-chart" style="height: 300px;"></div>
+                        </div>
+                        <div class="chart-box">
+                            <h3>月足</h3>
+                            <div id="monthly-chart" style="height: 300px;"></div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="section-card">
+                    <div class="data-header">
+                        <h2>財務情報 (Fundamentals)</h2>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr
+                                    x-init="$nextTick(() => { if (details.fundamentals.length > 0) fundamentalsColumns = Object.keys(details.fundamentals[0]); })">
+                                    <template x-for="col in fundamentalsColumns" :key="col">
+                                        <th x-text="col"></th>
+                                    </template>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template x-for="row in details.fundamentals" :key="JSON.stringify(row)">
+                                    <tr>
+                                        <template x-for="col in fundamentalsColumns" :key="col">
+                                            <td x-text="Utils.formatValue(row[col])"></td>
+                                        </template>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <section class="section-card">
+                    <h2>EDINET 財務データ (抽出)</h2>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>提出日</th>
+                                    <th>売上高</th>
+                                    <th>営業利益</th>
+                                    <th>純利益</th>
+                                    <th>詳細ID</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template x-for="doc in details.edinet" :key="doc.docId">
+                                    <tr>
+                                        <td x-text="doc.date"></td>
+                                        <td x-text="Utils.formatValue(doc.net_sales)"></td>
+                                        <td x-text="Utils.formatValue(doc.operating_income)"></td>
+                                        <td x-text="Utils.formatValue(doc.net_income)"></td>
+                                        <td x-text="doc.docId"></td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <section class="section-card">
+                    <h2>大量保有報告</h2>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>提出日</th>
+                                    <th>提出者</th>
+                                    <th>保有割合</th>
+                                    <th>前保有割合</th>
+                                    <th>書類詳細</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template x-for="row in details.largeShareholdings" :key="JSON.stringify(row)">
+                                    <tr>
+                                        <td x-text="row.submit_date"></td>
+                                        <td x-text="row.filer_name"></td>
+                                        <td x-text="row.holding_ratio + '%'"></td>
+                                        <td x-text="row.prev_holding_ratio + '%'"></td>
+                                        <td x-text="row.doc_description"></td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
+        </template>
+    </main>
+
+    <script type="module" src="/src/pages/company.ts"></script>
+</body>
+
+</html>

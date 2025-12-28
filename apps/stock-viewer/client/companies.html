@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Companies - Stock Viewer</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+    <link rel="stylesheet" href="/styles/custom.css">
+    <style>
+        [x-cloak] {
+            display: none !important;
+        }
+    </style>
+</head>
+
+<body x-data="companiesPage" x-init="init()">
+    <nav class="sidebar" x-data="sidebar" x-init="init()">
+        <h2>Stock Viewer</h2>
+        <ul>
+            <template x-for="table in tables" :key="table">
+                <li>
+                    <button class="outline" :class="table === 'companies' ? '' : 'secondary'" @click="navigate(table)"
+                        x-text="table"></button>
+                </li>
+            </template>
+        </ul>
+    </nav>
+
+    <main>
+        <header>
+            <h1>企業一覧</h1>
+        </header>
+
+        <section class="filter-container">
+            <div class="filter-row">
+                <input type="search" x-model="filterQuery" @input.debounce.300ms="applyFilter()"
+                    placeholder="銘柄コードまたは会社名で検索...">
+                <button type="button" class="secondary" @click="clearAllFilters()">クリア</button>
+            </div>
+            <div class="filter-dropdowns">
+                <template x-for="type in ['market', 'sector33', 'sector17', 'scale']" :key="type">
+                    <details class="dropdown">
+                        <summary>
+                            <span
+                                x-text="type === 'market' ? '市場' : type === 'sector33' ? '業種(33)' : type === 'sector17' ? '業種(17)' : '規模'"></span>
+                            <span x-show="selectedFilters[type].length > 0"
+                                x-text="'(' + selectedFilters[type].length + ')'"></span>
+                        </summary>
+                        <ul>
+                            <template x-for="option in filterOptions[type]" :key="option">
+                                <li>
+                                    <label>
+                                        <input type="checkbox" :checked="selectedFilters[type].includes(option)"
+                                            @change="toggleFilter(type, option)">
+                                        <span x-text="option"></span>
+                                    </label>
+                                </li>
+                            </template>
+                        </ul>
+                    </details>
+                </template>
+            </div>
+        </section>
+
+        <template x-if="loadingData">
+            <p aria-busy="true">データ読み込み中...</p>
+        </template>
+
+        <template x-if="columns.length > 0">
+            <div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <template x-for="col in columns" :key="col">
+                                    <th x-text="col"></th>
+                                </template>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <template x-for="row in data" :key="JSON.stringify(row)">
+                                <tr @click="openDetails(row)">
+                                    <template x-for="col in columns" :key="col">
+                                        <td x-text="Utils.formatValue(row[col])"></td>
+                                    </template>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination -->
+                <nav class="pagination">
+                    <ul>
+                        <li><button @click="prevPage" :disabled="page <= 1">前へ</button></li>
+                        <li x-text="page + ' / ' + totalPages"></li>
+                        <li><button @click="nextPage" :disabled="page >= totalPages">次へ</button></li>
+                    </ul>
+                </nav>
+            </div>
+        </template>
+    </main>
+
+    <!-- Details Modal -->
+    <dialog :open="showDetails" @click.self="closeDetails()">
+        <article>
+            <header>
+                <button aria-label="Close" @click="closeDetails()"></button>
+                <h3>詳細情報</h3>
+                <a x-show="selectedRow.code" :href="'/company?code=' + selectedRow.code" class="button"
+                    style="margin-bottom: 0;">詳細ページへ</a>
+            </header>
+            <div id="chart-container" style="width: 100%; height: 400px;"></div>
+            <dl>
+                <template x-for="(value, key) in selectedRow" :key="key">
+                    <dt x-text="key"></dt>
+                    <dd x-text="Utils.formatValue(value)"></dd>
+                </template>
+            </dl>
+        </article>
+    </dialog>
+
+    <script type="module" src="/src/pages/companies.ts"></script>
+</body>
+
+</html>
