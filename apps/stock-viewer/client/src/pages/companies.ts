@@ -1,4 +1,4 @@
-import { initShared, Alpine, Api, StockChart, Chart, Utils } from '../init';
+import { initShared, Alpine, Api, StockChart } from '../init';
 import { SelectedFilters } from '../types';
 
 /**
@@ -21,6 +21,21 @@ const CompaniesPage = () => ({
     chartInstances: [] as any[],
 
     async init() {
+        // URLパラメータの解析
+        const params = new URLSearchParams(window.location.search);
+        this.filterQuery = params.get('q') || '';
+        this.page = parseInt(params.get('page') || '1');
+        this.chartMode = params.get('chartMode') || 'none';
+
+        // フィルターの復元
+        const filterTypes: (keyof SelectedFilters)[] = ['market', 'sector33', 'sector17', 'scale'];
+        filterTypes.forEach(type => {
+            const values = params.get(type);
+            if (values) {
+                this.selectedFilters[type] = values.split(',');
+            }
+        });
+
         try {
             this.filterOptions = await Api.fetchFilterOptions();
             await this.applyFilter();
@@ -29,9 +44,27 @@ const CompaniesPage = () => ({
         }
     },
 
+    syncUrl() {
+        const params = new URLSearchParams();
+        if (this.filterQuery) params.set('q', this.filterQuery);
+        if (this.page > 1) params.set('page', this.page.toString());
+        if (this.chartMode !== 'none') params.set('chartMode', this.chartMode);
+
+        const filterTypes: (keyof SelectedFilters)[] = ['market', 'sector33', 'sector17', 'scale'];
+        filterTypes.forEach(type => {
+            if (this.selectedFilters[type].length > 0) {
+                params.set(type, this.selectedFilters[type].join(','));
+            }
+        });
+
+        const newUrl = `${window.location.pathname}${params.toString() ? '?' + params.toString() : ''}`;
+        window.history.replaceState({}, '', newUrl);
+    },
+
     async applyFilter() {
         this.loadingData = true;
         this.destroyCharts();
+        this.syncUrl(); // URLを同期
         try {
             const result = await Api.searchCompanies(this.filterQuery, this.selectedFilters, this.page, this.limit);
             this.data = result.data;
@@ -116,16 +149,19 @@ const CompaniesPage = () => ({
         setTimeout(async () => {
             const container = document.getElementById('chart-container');
             if (container) {
-                Chart.init(container);
+                const chart = new StockChart();
+                chart.init(container);
                 const priceData = await Api.fetchPriceData(row.code);
-                Chart.setData(priceData);
+                chart.setData(priceData);
+                // モーダルを閉じる際に後片付けが必要だが、既存コードではChartシングルトンを使っていた
+                // 暫定的にこのままにする（StockChartクラスへの移行が進んでいるため）
             }
         }, 0);
     },
 
     closeDetails() {
         this.showDetails = false;
-        Chart.destroy();
+        // Chart.destroy(); // 古いシングルトン用
     }
 });
 
