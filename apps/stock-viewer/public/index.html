@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -9,13 +10,16 @@
     <!-- Alpine.js -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <!-- Lightweight Charts -->
-    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+    <script src="https://unpkg.com/lightweight-charts@5.1.0/dist/lightweight-charts.standalone.production.js"></script>
     <style>
-        [x-cloak] { display: none !important; }
+        [x-cloak] {
+            display: none !important;
+        }
     </style>
 </head>
+
 <body class="bg-gray-900 text-white font-sans antialiased h-screen flex overflow-hidden" x-data="app()">
-    
+
     <!-- Sidebar -->
     <div class="w-64 bg-gray-800 border-r border-gray-700 flex flex-col">
         <div class="p-4 border-b border-gray-700">
@@ -28,12 +32,10 @@
             <ul class="p-2">
                 <template x-for="table in tables" :key="table">
                     <li>
-                        <button 
-                            @click="loadTable(table)"
+                        <button @click="loadTable(table)"
                             :class="{'bg-blue-600 text-white': currentTable === table, 'text-gray-300 hover:bg-gray-700': currentTable !== table}"
                             class="w-full text-left px-4 py-2 rounded-md transition-colors mb-1"
-                            x-text="table"
-                        ></button>
+                            x-text="table"></button>
                     </li>
                 </template>
             </ul>
@@ -42,25 +44,28 @@
 
     <!-- Main Content -->
     <div class="flex-1 flex flex-col h-full overflow-hidden">
-        
+
         <!-- Header -->
         <div class="h-16 bg-gray-800 border-b border-gray-700 flex items-center justify-between px-6">
             <h2 class="text-xl font-semibold" x-text="currentTable || 'Select a table'"></h2>
             <div x-show="currentTable" class="flex items-center space-x-4">
                 <span class="text-sm text-gray-400" x-text="`Total: ${totalRecords}`"></span>
                 <div class="flex items-center space-x-2">
-                    <button @click="prevPage" :disabled="page <= 1" class="px-3 py-1 bg-gray-700 rounded hover:bg-gray-600 disabled:opacity-50">Prev</button>
+                    <button @click="prevPage" :disabled="page <= 1"
+                        class="px-3 py-1 bg-gray-700 rounded hover:bg-gray-600 disabled:opacity-50">Prev</button>
                     <span class="text-sm" x-text="`Page ${page} of ${totalPages}`"></span>
-                    <button @click="nextPage" :disabled="page >= totalPages" class="px-3 py-1 bg-gray-700 rounded hover:bg-gray-600 disabled:opacity-50">Next</button>
+                    <button @click="nextPage" :disabled="page >= totalPages"
+                        class="px-3 py-1 bg-gray-700 rounded hover:bg-gray-600 disabled:opacity-50">Next</button>
                 </div>
             </div>
         </div>
 
         <!-- Content Area -->
         <div class="flex-1 overflow-auto p-6 relative">
-            
+
             <!-- Loading Overlay -->
-            <div x-show="loadingData" class="absolute inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-10">
+            <div x-show="loadingData"
+                class="absolute inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-10">
                 <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
             </div>
 
@@ -71,7 +76,9 @@
                         <thead class="bg-gray-700">
                             <tr>
                                 <template x-for="col in columns" :key="col">
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider" x-text="col"></th>
+                                    <th scope="col"
+                                        class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider"
+                                        x-text="col"></th>
                                 </template>
                             </tr>
                         </thead>
@@ -92,37 +99,58 @@
 
             <!-- Empty State -->
             <div x-show="!currentTable" class="h-full flex flex-col items-center justify-center text-gray-500">
-                <svg class="w-16 h-16 mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path></svg>
+                <svg class="w-16 h-16 mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4">
+                    </path>
+                </svg>
                 <p class="text-xl">Select a table to view data</p>
             </div>
         </div>
     </div>
 
     <!-- Details Modal / Slide-over -->
-    <div x-show="showDetails" x-cloak class="fixed inset-0 overflow-hidden z-20" aria-labelledby="slide-over-title" role="dialog" aria-modal="true">
+    <div x-show="showDetails" x-cloak class="fixed inset-0 overflow-hidden z-20" aria-labelledby="slide-over-title"
+        role="dialog" aria-modal="true">
         <div class="absolute inset-0 overflow-hidden">
-            <div x-show="showDetails" x-transition:enter="ease-in-out duration-500" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="ease-in-out duration-500" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="absolute inset-0 bg-gray-900 bg-opacity-75 transition-opacity" @click="showDetails = false"></div>
+            <div x-show="showDetails" x-transition:enter="ease-in-out duration-500" x-transition:enter-start="opacity-0"
+                x-transition:enter-end="opacity-100" x-transition:leave="ease-in-out duration-500"
+                x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+                class="absolute inset-0 bg-gray-900 bg-opacity-75 transition-opacity" @click="showDetails = false">
+            </div>
 
             <div class="pointer-events-none fixed inset-y-0 right-0 flex max-w-full pl-10">
-                <div x-show="showDetails" x-transition:enter="transform transition ease-in-out duration-500 sm:duration-700" x-transition:enter-start="translate-x-full" x-transition:enter-end="translate-x-0" x-transition:leave="transform transition ease-in-out duration-500 sm:duration-700" x-transition:leave-start="translate-x-0" x-transition:leave-end="translate-x-full" class="pointer-events-auto w-screen max-w-2xl">
+                <div x-show="showDetails"
+                    x-transition:enter="transform transition ease-in-out duration-500 sm:duration-700"
+                    x-transition:enter-start="translate-x-full" x-transition:enter-end="translate-x-0"
+                    x-transition:leave="transform transition ease-in-out duration-500 sm:duration-700"
+                    x-transition:leave-start="translate-x-0" x-transition:leave-end="translate-x-full"
+                    class="pointer-events-auto w-screen max-w-2xl">
                     <div class="flex h-full flex-col overflow-y-scroll bg-gray-800 shadow-xl border-l border-gray-700">
                         <div class="px-4 sm:px-6 py-6 border-b border-gray-700 flex justify-between items-center">
                             <h2 class="text-lg font-medium text-white" id="slide-over-title">Row Details</h2>
-                            <button @click="showDetails = false" type="button" class="rounded-md bg-gray-800 text-gray-400 hover:text-white focus:outline-none focus:ring-2 focus:ring-white">
+                            <button @click="showDetails = false" type="button"
+                                class="rounded-md bg-gray-800 text-gray-400 hover:text-white focus:outline-none focus:ring-2 focus:ring-white">
                                 <span class="sr-only">Close panel</span>
-                                <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                                <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                                    stroke="currentColor" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
                             </button>
                         </div>
                         <div class="relative mt-6 flex-1 px-4 sm:px-6">
-                            
+
                             <!-- Chart Container (Only for Prices) -->
-                            <div x-show="isPriceData" class="mb-6 h-64 w-full bg-gray-900 rounded border border-gray-700" id="chart-container"></div>
+                            <div x-show="isPriceData"
+                                class="mb-6 h-64 w-full bg-gray-900 rounded border border-gray-700"
+                                id="chart-container"></div>
 
                             <dl class="divide-y divide-gray-700">
                                 <template x-for="(value, key) in selectedRow" :key="key">
                                     <div class="px-4 py-3 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-0">
                                         <dt class="text-sm font-medium leading-6 text-gray-400" x-text="key"></dt>
-                                        <dd class="mt-1 text-sm leading-6 text-white sm:col-span-2 sm:mt-0 break-words" x-text="formatValue(value)"></dd>
+                                        <dd class="mt-1 text-sm leading-6 text-white sm:col-span-2 sm:mt-0 break-words"
+                                            x-text="formatValue(value)"></dd>
                                     </div>
                                 </template>
                             </dl>
@@ -157,7 +185,7 @@
                     window.addEventListener('resize', () => {
                         if (this.chart) {
                             const container = document.getElementById('chart-container');
-                            if(container) {
+                            if (container) {
                                 this.chart.resize(container.clientWidth, container.clientHeight);
                             }
                         }
@@ -183,7 +211,7 @@
                     } else {
                         this.page = page;
                     }
-                    
+
                     this.loadingData = true;
                     try {
                         const res = await fetch(`/api/table/${table}?page=${this.page}&limit=${this.limit}`);
@@ -220,14 +248,14 @@
                 async openDetails(row) {
                     this.selectedRow = row;
                     this.showDetails = true;
-                    
+
                     // Logic to load chart if appropriate
                     // If table is prices OR we can find related price data
                     // For now, let's assume if the row has a 'code', we can fetch prices for that code
                     // But wait, the main 'prices' table has many rows.
                     // If we are VIEWING 'prices' table, clicking a row is just one day. 
                     // To show a chart, we need historical data for that code.
-                    
+
                     if (row.code || (this.currentTable === 'prices' && row.code)) {
                         await this.loadChart(row.code);
                     } else {
@@ -236,7 +264,7 @@
                 },
 
                 get isPriceData() {
-                   return !!this.selectedRow.code; 
+                    return !!this.selectedRow.code;
                 },
 
                 async loadChart(code) {
@@ -251,13 +279,13 @@
                         try {
                             const res = await fetch(`/api/query?sql=${encodeURIComponent(sql)}`);
                             const priceData = await res.json();
-                            
+
                             // Transform data for Lightweight Charts
                             // prices table has date as bigint (YYYYMMDD or timestamp?)
                             // Let's check schema... prices schema says date is bigint. Usually YYYYMMDD or unix? 
                             // Wait, in DuckDB imports it might be just numbers. 
                             // If it is YYYYMMDD, we need to parse it.
-                            
+
                             const chartData = priceData.map(d => {
                                 // Simple heuristic for date format
                                 let dateStr = String(d.date);
@@ -299,14 +327,14 @@
                                     height: container.clientHeight,
                                 });
                                 this.candlestickSeries = this.chart.addCandlestickSeries({
-                                    upColor: '#26a69a', 
-                                    downColor: '#ef5350', 
-                                    borderVisible: false, 
-                                    wickUpColor: '#26a69a', 
-                                    wickDownColor: '#ef5350' 
+                                    upColor: '#26a69a',
+                                    downColor: '#ef5350',
+                                    borderVisible: false,
+                                    wickUpColor: '#26a69a',
+                                    wickDownColor: '#ef5350'
                                 });
                             }
-                            
+
                             this.candlestickSeries.setData(chartData);
                             this.chart.timeScale().fitContent();
 
@@ -321,11 +349,12 @@
                         this.chart.remove();
                         this.chart = null;
                         this.candlestickSeries = null;
-                        document.getElementById('chart-container').innerHTML = ''; 
+                        document.getElementById('chart-container').innerHTML = '';
                     }
                 }
             }
         }
     </script>
 </body>
+
 </html>
