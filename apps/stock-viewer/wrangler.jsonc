@@ -7,7 +7,8 @@
         "nodejs_compat"
     ],
     "vars": {
-        "NODE_ENV": "production"
+        "NODE_ENV": "production",
+        "R2_BUCKET_NAME": "stock-analyze-data"
     },
     "containers": [
         {
