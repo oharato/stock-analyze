@@ -19,7 +19,10 @@ COPY package.json pnpm-lock.yaml* ./
 COPY tsconfig.json ./
 
 # 6. Install dependencies
-RUN pnpm install --prod
+# Set pnpm to allow building native dependencies (like sharp)
+RUN pnpm config set supportedArchitectures.os ["linux"] && \
+    pnpm config set supportedArchitectures.cpu ["x64", "arm64"] && \
+    pnpm install --prod
 
 # 7. Copy compiled server and client code
 # Note: assumes 'npm run build' was run locally before 'wrangler deploy'
