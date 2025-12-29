@@ -5,13 +5,13 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 const app = new Hono();
-const DB_PATH = path.resolve(process.cwd(), '../../data/stock.duckdb');
 
 // Patch BigInt serialization
 (BigInt.prototype as any).toJSON = function () {
     return this.toString();
 };
 
+// DuckDB initialization logic
 let db: DuckDBInstance | null = null;
 let conn: any = null;
 let extractor: any = null;
@@ -24,13 +24,69 @@ async function getExtractor() {
     return extractor;
 }
 
+async function setupR2(connection: any) {
+    const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+    const accessKeyId = process.env.R2_ACCESS_KEY_ID;
+    const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
+    const bucketName = process.env.R2_BUCKET_NAME;
+
+    if (!accountId || !accessKeyId || !secretAccessKey || !bucketName) {
+        console.log('[DuckDB] R2 credentials not fully set, skipping R2 attach.');
+        return false;
+    }
+
+    try {
+        console.log('[DuckDB] Setting up R2 via httpfs...');
+        await connection.run('INSTALL httpfs; LOAD httpfs;');
+
+        const r2Endpoint = `${accountId}.r2.cloudflarestorage.com`;
+
+        await connection.run(`
+            CREATE SECRET r2_secret (
+                TYPE S3,
+                KEY_ID '${accessKeyId.replace(/'/g, "''")}',
+                SECRET '${secretAccessKey.replace(/'/g, "''")}',
+                REGION 'auto',
+                ENDPOINT '${r2Endpoint}',
+                URL_STYLE 'path',
+                USE_SSL true
+            );
+        `);
+
+        await connection.run(`ATTACH 's3://${bucketName}/stock.duckdb' AS stock_db (READ_ONLY);`);
+        await connection.run('USE stock_db;');
+        console.log('[DuckDB] R2 attached successfully.');
+        return true;
+    } catch (e) {
+        console.error('[DuckDB] R2 setup failed:', e);
+        return false;
+    }
+}
+
 async function getConn() {
-    if (!db) {
-        db = await DuckDBInstance.create(DB_PATH);
+    if (conn) return conn;
+
+    // Use :memory: as base for Cloudflare/R2 or if local file doesn't exist
+    const localDbPath = path.resolve(process.cwd(), '../../data/stock.duckdb');
+    const useLocal = fs.existsSync(localDbPath);
+
+    if (useLocal) {
+        console.log(`[DuckDB] Using local database: ${localDbPath}`);
+        db = await DuckDBInstance.create(localDbPath);
+    } else {
+        console.log('[DuckDB] Using in-memory database (will try R2 attach)');
+        db = await DuckDBInstance.create(':memory:');
     }
-    if (!conn) {
-        conn = await db.connect();
+
+    conn = await db!.connect();
+
+    if (!useLocal) {
+        const r2Success = await setupR2(conn);
+        if (!r2Success) {
+            console.warn('[DuckDB] WARNING: No database attached. All queries will fail.');
+        }
     }
+
     return conn;
 }
 

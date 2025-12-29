@@ -1,0 +1,39 @@
+{
+    "$schema": "node_modules/wrangler/config-schema.json",
+    "name": "stock-viewer",
+    "main": "src/worker.ts",
+    "compatibility_date": "2025-11-17",
+    "compatibility_flags": [
+        "nodejs_compat"
+    ],
+    "vars": {
+        "NODE_ENV": "production"
+    },
+    "containers": [
+        {
+            "class_name": "StockViewerContainer",
+            "image": "./Dockerfile",
+            "instance_type": "standard-1",
+            "max_instances": 1
+        }
+    ],
+    "durable_objects": {
+        "bindings": [
+            {
+                "class_name": "StockViewerContainer",
+                "name": "STOCK_VIEWER_CONTAINER"
+            }
+        ]
+    },
+    "migrations": [
+        {
+            "tag": "v1",
+            "new_sqlite_classes": [
+                "StockViewerContainer"
+            ]
+        }
+    ],
+    "observability": {
+        "enabled": true
+    }
+}
