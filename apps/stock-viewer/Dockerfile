@@ -20,8 +20,8 @@ COPY tsconfig.json ./
 
 # 6. Install dependencies
 # Set pnpm to allow building native dependencies (like sharp)
-RUN pnpm config set supportedArchitectures.os ["linux"] && \
-    pnpm config set supportedArchitectures.cpu ["x64", "arm64"] && \
+RUN echo "supportedArchitectures.os=linux" >> .npmrc && \
+    echo "supportedArchitectures.cpu=x64,arm64" >> .npmrc && \
     pnpm install --prod
 
 # 7. Copy compiled server and client code
