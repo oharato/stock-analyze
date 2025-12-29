@@ -21,6 +21,44 @@ export interface Company {
     [key: string]: unknown;
 }
 
+// EDINETデータ型
+export interface EdinetData {
+    doc_id: string;
+    ticker?: string;
+    filer_name: string;
+    doc_description: string;
+    submit_date: string;
+    business_risks?: string;
+    business_policy?: string;
+    mda?: string;
+    [key: string]: unknown;
+}
+
+// 財務データ型
+export interface FundamentalData {
+    code: string;
+    name: string;
+    year: number;
+    quarter: number;
+    sales?: number;
+    ext_sales?: number;
+    op_income?: number;
+    net_income?: number;
+    total_assets?: number;
+    net_assets?: number;
+    [key: string]: unknown;
+}
+
+// 大量保有データ型
+export interface LargeShareholdingData {
+    doc_id: string;
+    ticker: string;
+    filer_name: string;
+    submit_date: string;
+    holding_ratio: number;
+    [key: string]: unknown;
+}
+
 // 株価データ型
 export interface PriceData {
     date: string | number;
@@ -62,14 +100,14 @@ export interface AppState {
     currentTable: string | null;
     loadingTables: boolean;
     loadingData: boolean;
-    data: Record<string, unknown>[];
+    data: (Company | EdinetData | FundamentalData | LargeShareholdingData | Record<string, unknown>)[];
     columns: string[];
     page: number;
     limit: number;
     totalRecords: number;
     totalPages: number;
     showDetails: boolean;
-    selectedRow: Record<string, unknown>;
+    selectedRow: any;
     filterQuery: string;
     filterOptions: FilterOptions;
     selectedFilters: SelectedFilters;

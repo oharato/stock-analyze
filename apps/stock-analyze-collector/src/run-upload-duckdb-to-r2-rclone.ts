@@ -62,7 +62,7 @@ async function main() {
 
     // data/processedディレクトリをアップロード
     try {
-      await rcloneService.uploadDirectory(processedDir, r2ProcessedDir, bucketName, rcloneEnv);
+      // await rcloneService.uploadDirectory(processedDir, r2ProcessedDir, bucketName, rcloneEnv);
     } catch (e) {
       // Directory upload error is already logged by service
     }
