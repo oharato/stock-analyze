@@ -81,7 +81,7 @@ If no tool is suitable, respond with:
         for (let turn = 0; turn < maxTurns; turn++) {
             console.log(`[AI] Turn ${turn + 1}/${maxTurns}`);
 
-            const aiResponse = (await this.env.AI.run("@cf/meta/llama-3.1-70b-instruct" as keyof AiModels, {
+            const aiResponse = (await this.env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast" as keyof AiModels, {
                 prompt: currentPrompt,
                 max_tokens: 1000,
             })) as { response: string };

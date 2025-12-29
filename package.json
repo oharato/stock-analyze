@@ -27,6 +27,9 @@
 		"onlyBuiltDependencies": [
 			"better-sqlite3",
 			"sharp"
-		]
+		],
+		"overrides": {
+			"sharp": "0.33.5"
+		}
 	}
 }
