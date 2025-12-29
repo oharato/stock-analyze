@@ -52,10 +52,36 @@
 </head>
 
 <body x-data="companyPage" x-init="init()">
-    <nav class="sidebar" x-data="sidebar" x-init="init()">
-        <h2>Stock Viewer</h2>
+    <div class="mobile-header">
+        <button class="outline secondary" @click="$store.ui.toggleSidebar()" style="margin-bottom: 0;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="3" y1="12" x2="21" y2="12"></line>
+                <line x1="3" y1="6" x2="21" y2="6"></line>
+                <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+        </button>
+        <h3 style="margin: 0; font-size: 1.2rem;"><a href="/" style="color: inherit; text-decoration: none;">Stock
+                Viewer</a></h3>
+        <div style="width: 42px;"></div><!-- Spacer -->
+    </div>
+
+    <div class="sidebar-overlay" :class="$store.ui.sidebarOpen ? 'open' : ''" @click="$store.ui.closeSidebar()"></div>
+
+    <nav class="sidebar" :class="$store.ui.sidebarOpen ? 'open' : ''" x-data="sidebar" x-init="init()">
+        <header style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+            <h2><a href="/" style="color: inherit; text-decoration: none;">Stock Viewer</a></h2>
+            <button class="outline secondary mobile-only" @click="$store.ui.closeSidebar()"
+                style="border: none; padding: 0.5rem; display: none;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        </header>
         <ul>
-            <li><button class="outline secondary" @click="window.location.href='/companies'">一覧に戻る</button></li>
+            <li><button class="outline secondary" @click="window.location.href='/companies.html'">一覧に戻る</button></li>
         </ul>
     </nav>
 
@@ -65,7 +91,7 @@
         </template>
 
         <template x-if="!loading && details">
-            <div>
+            <div class="scroll-area">
                 <header>
                     <h1 x-text="details.company.name + ' (' + details.company.code + ')'"></h1>
                     <div class="grid">
@@ -75,7 +101,7 @@
                     </div>
                 </header>
 
-                <section class="section-card">
+                <section class="section-card" id="tradingview-section">
                     <h2>株価チャート</h2>
                     <div class="chart-grid">
                         <div class="chart-box">
@@ -111,7 +137,7 @@
                                 <template x-for="row in details.fundamentals" :key="JSON.stringify(row)">
                                     <tr>
                                         <template x-for="col in fundamentalsColumns" :key="col">
-                                            <td x-text="Utils.formatValue(row[col])"></td>
+                                            <td x-text="Utils.formatValue(row[col], col)"></td>
                                         </template>
                                     </tr>
                                 </template>

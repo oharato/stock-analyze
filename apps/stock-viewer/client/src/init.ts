@@ -18,6 +18,17 @@ export function initShared() {
 
     // 共通コンポーネント登録
     Alpine.data('sidebar', Sidebar);
+
+    // グローバルストアの初期化
+    Alpine.store('ui', {
+        sidebarOpen: false,
+        toggleSidebar() {
+            (this as any).sidebarOpen = !(this as any).sidebarOpen;
+        },
+        closeSidebar() {
+            (this as any).sidebarOpen = false;
+        }
+    });
 }
 
 export { Alpine, Api, StockChart, ChartInstance as Chart, Utils };

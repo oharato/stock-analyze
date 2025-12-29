@@ -16,13 +16,39 @@
 </head>
 
 <body x-data="tablePage" x-init="init()">
-    <nav class="sidebar" x-data="sidebar" x-init="init()">
-        <h2>Stock Viewer</h2>
+    <div class="mobile-header">
+        <button class="outline secondary" @click="$store.ui.toggleSidebar()" style="margin-bottom: 0;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="3" y1="12" x2="21" y2="12"></line>
+                <line x1="3" y1="6" x2="21" y2="6"></line>
+                <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+        </button>
+        <h3 style="margin: 0; font-size: 1.2rem;"><a href="/" style="color: inherit; text-decoration: none;">Stock
+                Viewer</a></h3>
+        <div style="width: 42px;"></div><!-- Spacer -->
+    </div>
+
+    <div class="sidebar-overlay" :class="$store.ui.sidebarOpen ? 'open' : ''" @click="$store.ui.closeSidebar()"></div>
+
+    <nav class="sidebar" :class="$store.ui.sidebarOpen ? 'open' : ''" x-data="sidebar" x-init="init()">
+        <header style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+            <h2><a href="/" style="color: inherit; text-decoration: none;">Stock Viewer</a></h2>
+            <button class="outline secondary mobile-only" @click="$store.ui.closeSidebar()"
+                style="border: none; padding: 0.5rem; display: none;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        </header>
         <ul>
             <template x-for="table in tables" :key="table">
                 <li>
-                    <button class="outline" :class="table === 'edinet' ? '' : 'secondary'" @click="navigate(table)"
-                        x-text="table"></button>
+                    <button class="outline" :class="table === 'edinet' ? '' : 'secondary'"
+                        @click="navigate(table); $store.ui.closeSidebar()" x-text="table"></button>
                 </li>
             </template>
         </ul>
@@ -35,10 +61,10 @@
             <p aria-busy="true">読み込み中...</p>
         </template>
 
-        <div class="filter-row" style="margin-bottom: 1rem; display: flex; gap: 1rem; align-items: flex-end;">
-            <div style="flex: 0 0 200px;">
-                <label for="vectorTarget" style="margin-bottom: 0.5rem; font-size: 0.8rem;">検索対象セクション</label>
-                <select id="vectorTarget" x-model="vectorTarget" style="margin-bottom: 0;">
+        <div class="filter-row vector-filter">
+            <div class="filter-group">
+                <label for="vectorTarget">検索対象セクション</label>
+                <select id="vectorTarget" x-model="vectorTarget">
                     <option value="business_policy">経営方針・環境</option>
                     <option value="business_risks">事業等のリスク</option>
                     <option value="mda">MD&A（財政状態分析）</option>
@@ -48,12 +74,12 @@
                     <option value="corporate_governance">コーポレートガバナンス</option>
                 </select>
             </div>
-            <div style="flex: 1;">
-                <label for="vectorQuery" style="margin-bottom: 0.5rem; font-size: 0.8rem;">検索キーワード・文章</label>
+            <div class="filter-group-wide">
+                <label for="vectorQuery">検索キーワード・文章</label>
                 <input id="vectorQuery" type="text" x-model="vectorQuery" placeholder="文章で検索（例: 半導体不足の影響）"
-                    @keyup.enter="applyVectorSearch()" style="margin-bottom: 0;">
+                    @keyup.enter="applyVectorSearch()">
             </div>
-            <button @click="applyVectorSearch()" style="white-space: nowrap; margin-bottom: 0;">ベクトル検索</button>
+            <button @click="applyVectorSearch()" class="search-button">ベクトル検索</button>
         </div>
 
         <template x-if="columns.length > 0">
@@ -69,7 +95,7 @@
                                 <tr @click="openDetails(row)" style="cursor: pointer;"><template
                                         x-for="col in displayedColumns" :key="col">
                                         <td>
-                                            <div class="line-clamp" x-text="Utils.formatValue(row[col])"></div>
+                                            <div class="line-clamp" x-text="Utils.formatValue(row[col], col)"></div>
                                         </td>
                                     </template></tr>
                             </template></tbody>
@@ -87,16 +113,20 @@
     </main>
     <dialog :open="showDetails" @click.self="closeDetails()">
         <article>
-            <header><button aria-label="Close" @click="closeDetails()"></button>
-                <h3>詳細情報</h3>
-                <a x-show="selectedRow.code" :href="'/company?code=' + selectedRow.code" class="button"
-                    style="margin-bottom: 0;">詳細ページへ</a>
+            <header>
+                <h3 style="margin-bottom: 0;">詳細情報</h3>
+                <div style="display: flex; align-items: center; gap: 1rem;">
+                    <a x-show="selectedRow.code" :href="'/company.html?code=' + selectedRow.code"
+                        class="button outline secondary"
+                        style="margin-bottom: 0; font-size: 0.8rem; padding: 0.25rem 0.75rem;">詳細ページへ</a>
+                    <button class="modal-close-btn" aria-label="Close" @click="closeDetails()">×</button>
+                </div>
             </header>
             <dl class="details-grid"><template x-for="(value, key) in selectedRow" :key="key">
                     <template x-if="!key.endsWith('_vector')">
                         <div>
                             <dt x-text="key"></dt>
-                            <dd x-text="Utils.formatValue(value)"></dd>
+                            <dd x-text="Utils.formatValue(value, key)"></dd>
                         </div>
                     </template>
                 </template></dl>

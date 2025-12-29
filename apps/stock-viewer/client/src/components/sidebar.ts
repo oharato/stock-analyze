@@ -10,7 +10,9 @@ export const Sidebar = () => ({
     async init() {
         this.loadingTables = true;
         try {
-            this.tables = await Api.fetchTables();
+            const allTables = await Api.fetchTables();
+            const allowedTables = ['companies', 'edinet', 'fundamentals', 'large_shareholdings', 'prices'];
+            this.tables = allTables.filter(t => allowedTables.includes(t));
         } catch (e) {
             console.error('Failed to fetch tables', e);
         } finally {

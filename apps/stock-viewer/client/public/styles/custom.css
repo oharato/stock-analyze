@@ -148,6 +148,44 @@ dialog article {
     overflow-y: auto;
 }
 
+dialog article header {
+    display: flex !important;
+    flex-direction: row !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    flex-wrap: nowrap !important;
+    gap: 1rem !important;
+    padding: var(--pico-spacing) !important;
+    margin-bottom: 0 !important;
+    background: var(--pico-header-background-color) !important;
+    border-bottom: 1px solid var(--pico-muted-border-color) !important;
+}
+
+dialog article header h3 {
+    margin: 0 !important;
+    font-size: 1.25rem !important;
+}
+
+.modal-close-btn {
+    appearance: none !important;
+    padding: 0 0.5rem !important;
+    line-height: 1 !important;
+    font-size: 1.5rem !important;
+    margin: 0 !important;
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    color: var(--pico-muted-color) !important;
+    cursor: pointer !important;
+    width: auto !important;
+    min-width: 0 !important;
+}
+
+.modal-close-btn:hover {
+    color: var(--pico-primary) !important;
+    background: transparent !important;
+}
+
 /* Details list */
 dl.details-grid {
     display: grid;
@@ -181,22 +219,157 @@ dl.details-grid {
     color: var(--pico-muted-color);
 }
 
+/* Main content */
+main {
+    padding: var(--pico-spacing);
+    height: 100vh;
+    max-height: 100vh;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+}
+
+/* Mobile Header */
+.mobile-header {
+    display: none;
+    padding: 0.5rem var(--pico-spacing);
+    background: var(--pico-background-color);
+    border-bottom: 1px solid var(--pico-muted-border-color);
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+/* Sidebar Toggle Overlay */
+.sidebar-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 140;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     body {
         grid-template-columns: 1fr;
+        height: auto;
+        overflow-y: auto;
+    }
+
+    .mobile-header {
+        display: flex;
     }
 
     nav.sidebar {
-        position: relative;
+        position: fixed;
+        left: -250px;
+        top: 0;
+        width: 250px;
+        height: 100vh;
+        z-index: 150;
+        transition: left 0.3s ease;
+        box-shadow: 2px 0 10px rgba(0, 0, 0, 0.3);
+    }
+
+    nav.sidebar.open {
+        left: 0;
+    }
+
+    .sidebar-overlay.open {
+        display: block;
+    }
+
+    main {
+        padding: 0.5rem;
         height: auto;
-        border-right: none;
-        border-bottom: 1px solid var(--pico-muted-border-color);
+        max-height: none;
+        overflow: visible;
+    }
+
+    .content-area {
+        height: auto;
+        overflow: visible;
+    }
+
+    .table-container {
+        margin: 0.5rem 0;
     }
 
     dl.details-grid {
         grid-template-columns: 1fr;
     }
+
+    .filter-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .filter-row>* {
+        width: 100% !important;
+        margin-bottom: 0.5rem !important;
+    }
+
+    .mobile-only {
+        display: block !important;
+    }
+
+    .vector-filter {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .vector-filter>* {
+        flex: 1 1 auto !important;
+        width: 100% !important;
+    }
+
+    .chart-mode-cell {
+        min-width: 100% !important;
+    }
+}
+
+.mobile-only {
+    display: none;
+}
+
+/* Vector Search Filter */
+.vector-filter {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-end;
+    margin-bottom: var(--pico-spacing);
+}
+
+.filter-group {
+    flex: 0 0 200px;
+}
+
+.filter-group-wide {
+    flex: 1;
+}
+
+.filter-group label,
+.filter-group-wide label {
+    margin-bottom: 0.5rem;
+    font-size: 0.8rem;
+}
+
+.filter-group select,
+.filter-group-wide input {
+    margin-bottom: 0;
+}
+
+.search-button {
+    white-space: nowrap;
+    margin-bottom: 0;
 }
 
 /* Filter */
