@@ -301,7 +301,7 @@ export class EdinetFetchService {
             metrics = { ...metrics, ...fallbackResult.metrics };
         }
 
-        const saveData = await this.buildSaveData(ticker, doc.docID, docDate, commonMetadata, qualInfo, metrics, shareholders);
+        const saveData = await this.buildSaveData(ticker, doc.docID, docDate, commonMetadata, qualInfo, metrics, shareholders, parsed);
 
         fs.writeFileSync(filePath, JSON.stringify(saveData), 'utf-8');
         this.logger.info(`Saved data with vectors to ${filePath}`);
@@ -385,7 +385,8 @@ export class EdinetFetchService {
         commonMetadata: CommonMetadata,
         qualInfo: QualitativeInfo,
         metrics: KeyMetrics,
-        shareholders: ShareholderInfo[]
+        shareholders: ShareholderInfo[],
+        parsed: any
     ): Promise<EdinetDataWithVectors> {
         // Text fields (already cleaned by getQualitativeInfo())
         const businessPolicy = qualInfo.businessPolicy || '';
@@ -411,6 +412,29 @@ export class EdinetFetchService {
             this.vectorize(companyHistory),
             this.vectorize(researchAndDevelopment)
         ]);
+
+        // Extended fields from JPPFS Taxonomies
+        const jppfs = parsed.getJppfsCor();
+        const shareholdersEquity = jppfs.ShareholdersEquity;
+        const retainedEarnings = jppfs.RetainedEarnings;
+        const shortTermLoans = jppfs.ShortTermLoansPayable;
+        const longTermLoans = jppfs.LongTermLoansPayable;
+        const capex = -(jppfs.PurchaseOfPropertyPlantAndEquipmentInvCF || jppfs.PurchaseOfPropertyPlantAndEquipmentAndIntangibleAssetsInvCF || 0);
+        const dividendTotal = -(jppfs.CashDividendsPaidFinCF || 0);
+        const buybacks = -(jppfs.PurchaseOfTreasuryStockFinCF || jppfs.PurchaseOfTreasuryStock || 0);
+
+        // Calculated fields
+        const netIncome = metrics.netIncome || 0;
+        const totalAssets = metrics.totalAssets || 0;
+        const netSales = metrics.netSales || 0;
+        const ocf = metrics.operatingCashFlow || jppfs.NetCashProvidedByUsedInOperatingActivities || 0;
+        const netAssets = metrics.netAssets || jppfs.NetAssets || 0;
+
+        const roa = totalAssets > 0 ? (netIncome / totalAssets) * 100 : undefined;
+        const ocfMargin = netSales > 0 ? (ocf / netSales) * 100 : undefined;
+        const totalPayout = (dividendTotal + buybacks);
+        const totalPayoutRatio = netIncome > 0 ? (totalPayout / netIncome) * 100 : undefined;
+        const doe = netAssets > 0 ? (dividendTotal / netAssets) * 100 : undefined;
 
         return {
             // Metadata
@@ -458,6 +482,19 @@ export class EdinetFetchService {
             payout_ratio: metrics.payoutRatio,
             number_of_issued_shares: metrics.numberOfIssuedShares,
             dividend_paid_per_share: metrics.dividendPaidPerShare,
+
+            // Additional expanded fields
+            shareholders_equity: shareholdersEquity,
+            retained_earnings: retainedEarnings,
+            short_term_loans: shortTermLoans,
+            long_term_loans: longTermLoans,
+            capex,
+            dividend_total: dividendTotal,
+            buybacks,
+            roa,
+            ocf_margin: ocfMargin,
+            total_payout_ratio: totalPayoutRatio,
+            doe,
 
             // Shareholders
             major_shareholders: shareholders

@@ -156,6 +156,9 @@
                                     <th>売上高</th>
                                     <th>営業利益</th>
                                     <th>純利益</th>
+                                    <th>ROA</th>
+                                    <th>営業CFマージン</th>
+                                    <th>DOE</th>
                                     <th>詳細ID</th>
                                 </tr>
                             </thead>
@@ -166,6 +169,9 @@
                                         <td x-text="Utils.formatValue(doc.net_sales)"></td>
                                         <td x-text="Utils.formatValue(doc.operating_income)"></td>
                                         <td x-text="Utils.formatValue(doc.net_income)"></td>
+                                        <td x-text="doc.roa ? doc.roa.toFixed(2) + '%' : '-'"></td>
+                                        <td x-text="doc.ocf_margin ? doc.ocf_margin.toFixed(2) + '%' : '-'"></td>
+                                        <td x-text="doc.doe ? doc.doe.toFixed(2) + '%' : '-'"></td>
                                         <td x-text="doc.docId"></td>
                                     </tr>
                                 </template>

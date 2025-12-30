@@ -4,7 +4,8 @@ import { app, duckdb } from './index';
 describe('API Endpoints', () => {
     beforeAll(async () => {
         // Ensure DB is initialized for tests
-        await duckdb.runQuery('CREATE TABLE IF NOT EXISTS test_table (id INTEGER, name VARCHAR)');
+        await duckdb.runQuery('DROP TABLE IF EXISTS test_table');
+        await duckdb.runQuery('CREATE TABLE test_table (id INTEGER, name VARCHAR)');
         await duckdb.runQuery("INSERT INTO test_table VALUES (1, 'Test Item')");
     });
 
@@ -31,5 +32,19 @@ describe('API Endpoints', () => {
         expect(res.status).toBe(200);
         const data = await res.json() as any[];
         expect(data).toEqual([{ num: 100 }]);
+    });
+
+    it('GET /api/query should return 403 for non-SELECT queries', async () => {
+        const res = await app.request('/api/query?sql=CREATE+TABLE+evil+(id+INTEGER)');
+        expect(res.status).toBe(403);
+        const data = await res.json() as any;
+        expect(data.error).toMatch(/security reasons/);
+    });
+
+    it('GET /api/query should allow WITH statements', async () => {
+        const res = await app.request('/api/query?sql=WITH+t+AS+(SELECT+1+as+a)+SELECT+*+FROM+t');
+        expect(res.status).toBe(200);
+        const data = await res.json() as any[];
+        expect(data).toEqual([{ a: 1 }]);
     });
 });

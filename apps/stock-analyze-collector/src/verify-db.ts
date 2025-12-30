@@ -21,6 +21,13 @@ async function main() {
             const result = await conn.run(`SELECT COUNT(*) as count FROM ${table}`);
             const rows = await result.getRows();
             console.log(`${table}: ${rows[0][0]}`);
+
+            if (table === 'edinet') {
+                const colsResult = await conn.run(`DESCRIBE ${table}`);
+                const colsRows = await colsResult.getRows();
+                console.log(`Columns in ${table}:`);
+                colsRows.forEach(row => console.log(`  - ${row[0]}: ${row[1]}`));
+            }
         } catch (e: any) {
             console.log(`${table}: ERROR - ${e.message}`);
         }

@@ -4,6 +4,7 @@ import * as path from 'path';
 
 export interface DuckDBConfig {
     localPath?: string;
+    readonly?: boolean;
     r2?: {
         accountId: string;
         accessKeyId: string;
@@ -24,8 +25,12 @@ export class DuckDBManager {
         const dbPath = this.getDatabasePath();
         const isLocal = dbPath !== ':memory:';
 
-        console.log(`[DuckDB] Opening database at: ${dbPath}`);
-        this.instance = await DuckDBInstance.create(dbPath);
+        console.log(`[DuckDB] Opening database at: ${dbPath} (readonly: ${!!this.config.readonly})`);
+        const duckdbConfig: Record<string, string> = {};
+        if (this.config.readonly) {
+            duckdbConfig.access_mode = 'READ_ONLY';
+        }
+        this.instance = await DuckDBInstance.create(dbPath, duckdbConfig);
         this.connection = await this.instance.connect();
 
         if (!isLocal && this.config.r2) {

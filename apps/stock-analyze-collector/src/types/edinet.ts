@@ -46,6 +46,19 @@ export interface EdinetDataWithVectors {
     number_of_issued_shares?: number;
     dividend_paid_per_share?: number;
 
+    // Additional expanded fields
+    shareholders_equity?: number;
+    retained_earnings?: number;
+    short_term_loans?: number;
+    long_term_loans?: number;
+    capex?: number;
+    dividend_total?: number;
+    buybacks?: number;
+    roa?: number;
+    ocf_margin?: number;
+    total_payout_ratio?: number;
+    doe?: number;
+
     // Shareholders
     major_shareholders?: any[];
 }

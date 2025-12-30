@@ -32,6 +32,7 @@ const app = new Hono();
 };
 
 const duckdb = new DuckDBManager({
+    readonly: process.env.NODE_ENV !== 'test', // Enable readonly by default, except for tests
     r2: {
         accountId: process.env.CLOUDFLARE_ACCOUNT_ID || '',
         accessKeyId: process.env.R2_ACCESS_KEY_ID || '',
@@ -167,6 +168,12 @@ app.get('/api/query', async (c) => {
     if (!sql) return c.json({ error: "No SQL provided" }, 400);
 
     try {
+        // SECURITY CHECK: Only allow SELECT or WITH statements
+        const trimmedSql = sql.trim().toUpperCase();
+        if (!trimmedSql.startsWith('SELECT') && !trimmedSql.startsWith('WITH')) {
+            return c.json({ error: "Only SELECT and WITH statements are allowed for security reasons." }, 403);
+        }
+
         const data = await duckdb.runQuery(sql);
         c.header('Cache-Control', 'public, max-age=3600');
         return c.json(data);
