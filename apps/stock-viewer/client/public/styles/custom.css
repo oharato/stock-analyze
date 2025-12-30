@@ -134,7 +134,10 @@ table td {
     margin: var(--pico-spacing) 0;
     border: 1px solid var(--pico-muted-border-color);
     border-radius: var(--pico-border-radius);
+    position: relative;
+    /* Ensure relative positioning for legend */
 }
+
 
 /* Dialog/Modal */
 dialog {
@@ -492,6 +495,7 @@ main {
     overflow: hidden;
 }
 
+
 .name-column {
     max-width: 200px;
     overflow: hidden;
@@ -502,4 +506,64 @@ main {
 .chart-mode-cell .chart-container {
     width: 100%;
     height: 100%;
+    position: relative;
+    /* Container must be relative */
+}
+
+
+/* Chart Legend */
+.chart-legend {
+    position: absolute;
+    top: 5px;
+    left: 5px;
+    z-index: 20;
+    pointer-events: none;
+    /* Default to none to avoid blocking chart events */
+    font-size: 11px;
+    font-family: var(--pico-font-family);
+    background: rgba(19, 23, 34, 0.75);
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: #d1d4dc;
+    user-select: none;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: opacity 0.2s;
+}
+
+.legend-toggle-btn {
+    pointer-events: auto;
+    /* Buttons are interactive */
+    cursor: pointer;
+    font-size: 10px;
+    color: var(--pico-primary);
+    text-decoration: underline;
+    margin-right: 5px;
+}
+
+
+.chart-legend:hover {
+    background: rgba(19, 23, 34, 0.9);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.chart-legend.minimized {
+    opacity: 0.6;
+}
+
+.legend-ohlc {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 4px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 2px;
+    font-family: monospace;
+}
+
+.legend-item {
+    margin-bottom: 1px;
+    white-space: nowrap;
+}
+
+.legend-item:last-child {
+    margin-bottom: 0;
 }

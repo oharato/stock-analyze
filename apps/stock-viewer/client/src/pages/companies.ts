@@ -19,6 +19,8 @@ const CompaniesPage = () => ({
     selectedFilters: { market: [], sector33: [], sector17: [], scale: [] } as SelectedFilters,
     chartMode: 'none',
     chartInstances: [] as any[],
+    detailsChart: null as any,
+
 
     async init() {
         // URLパラメータの解析
@@ -149,20 +151,24 @@ const CompaniesPage = () => ({
         setTimeout(async () => {
             const container = document.getElementById('chart-container');
             if (container) {
-                const chart = new StockChart();
-                chart.init(container);
+                if (this.detailsChart) this.detailsChart.destroy();
+                this.detailsChart = new StockChart();
+                this.detailsChart.init(container);
                 const priceData = await Api.fetchPriceData(row.code);
-                chart.setData(priceData);
-                // モーダルを閉じる際に後片付けが必要だが、既存コードではChartシングルトンを使っていた
-                // 暫定的にこのままにする（StockChartクラスへの移行が進んでいるため）
+                this.detailsChart.setData(priceData);
             }
         }, 0);
     },
 
+
     closeDetails() {
+        if (this.detailsChart) {
+            this.detailsChart.destroy();
+            this.detailsChart = null;
+        }
         this.showDetails = false;
-        // Chart.destroy(); // 古いシングルトン用
     }
+
 });
 
 // コンポーネント登録と開始
