@@ -32,9 +32,17 @@ export class EdinetFetchService {
         });
 
         // Initialize Vectorization Model
-        this.logger.info('Initializing vectorization model (Xenova/paraphrase-multilingual-MiniLM-L12-v2)...');
-        const { pipeline } = await import('@xenova/transformers'); // Dynamic import
-        this.extractor = await pipeline('feature-extraction', 'Xenova/paraphrase-multilingual-MiniLM-L12-v2');
+        // Initialize Vectorization Model
+        if (process.env.USE_GPU === 'true') {
+            this.logger.info('Initializing vectorization model (GPU enabled)...');
+            const { pipeline } = await import('@xenova/transformers');
+            // @ts-ignore - device option is present in runtime but missing in types
+            this.extractor = await pipeline('feature-extraction', 'Xenova/paraphrase-multilingual-MiniLM-L12-v2', { device: 'gpu' });
+        } else {
+            this.logger.info('Initializing vectorization model (CPU)...');
+            const { pipeline } = await import('@xenova/transformers');
+            this.extractor = await pipeline('feature-extraction', 'Xenova/paraphrase-multilingual-MiniLM-L12-v2');
+        }
     }
 
     /**
@@ -67,7 +75,7 @@ export class EdinetFetchService {
         }
 
         // 1. Update Seed (Metadata)
-        await this.updateMetadata();
+        await this.updateMetadata(years);
 
         // 2. Query Documents from DB
         this.logger.info(`Querying documents for past ${years} years from local DB...`);
@@ -139,12 +147,21 @@ export class EdinetFetchService {
     /**
      * Update local EDINET metadata DB
      */
-    private async updateMetadata(): Promise<void> {
-        this.logger.info('Updating EDINET metadata (Seeding)...');
+    private async updateMetadata(years?: number): Promise<void> {
+        const periodStr = years ? `past ${years} years` : 'default period';
+        this.logger.info(`Updating EDINET metadata (Seeding) for ${periodStr}...`);
+
+        let startOption: Date | undefined;
+        if (years) {
+            startOption = new Date();
+            startOption.setFullYear(startOption.getFullYear() - years);
+        }
+
         const seeder = new EdinetInfoSeeder({
             apiKey: this.apiKey!,
             dbPath: this.edinetDbPath,
             skipExisting: true,
+            start: startOption,
             onProgress: (processed, total) => {
                 if (processed % 10 === 0 || processed === total) {
                     this.logger.info(`Seed Progress: ${processed}/${total} days processed.`);
@@ -254,7 +271,7 @@ export class EdinetFetchService {
             fs.mkdirSync(subDir, { recursive: true });
         }
 
-        const filename = `${ticker}-${docDate}-${doc.docID}.json`;
+        const filename = `${ticker}-${docDate}-${doc.docID}.parquet`;
         const filePath = path.join(subDir, filename);
 
         if (fs.existsSync(filePath)) {
@@ -303,9 +320,27 @@ export class EdinetFetchService {
 
         const saveData = await this.buildSaveData(ticker, doc.docID, docDate, commonMetadata, qualInfo, metrics, shareholders, parsed);
 
-        fs.writeFileSync(filePath, JSON.stringify(saveData), 'utf-8');
-        this.logger.info(`Saved data with vectors to ${filePath}`);
-        return true;
+        // Convert to Parquet friendly format (JSON fields to string)
+        const parquetRecord = {
+            ...saveData,
+            major_shareholders: JSON.stringify(saveData.major_shareholders)
+        };
+
+        try {
+            const parquetjs = await import('parquetjs');
+            const { ParquetWriter } = parquetjs.default;
+            const { EDINET_SCHEMA } = await import('../utils/schema-definitions.js');
+
+            const writer = await ParquetWriter.openFile(EDINET_SCHEMA, filePath);
+            await writer.appendRow(parquetRecord as any);
+            await writer.close();
+
+            this.logger.info(`Saved data with vectors to ${filePath}`);
+            return true;
+        } catch (e: any) {
+            this.logger.error(`Failed to write Parquet for ${doc.docID}: ${e.message}`);
+            return false;
+        }
     }
 
     private parseFallback(xml: string): { qualInfo: QualitativeInfo; metrics: Partial<KeyMetrics> } {

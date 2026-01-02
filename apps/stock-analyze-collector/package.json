@@ -5,7 +5,7 @@
   "type": "module",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "tsc",
+    "build": "tsgo",
     "test": "vitest run",
     "run:fetch-stock-list": "pnpm build && node dist/run-fetch-stock-list.js",
     "run:fetch-stock-prices": "pnpm build && node dist/run-fetch-stock-prices.js",
@@ -42,6 +42,7 @@
     "@types/parquetjs": "^0.10.6",
     "@types/unzipper": "^0.10.11",
     "@types/xlsx": "^0.0.36",
+    "@typescript/native-preview": "7.0.0-dev.20260102.1",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.0.0",

@@ -17,7 +17,9 @@ vi.mock('edinet-ts', () => ({
         SemiAnnualReport: '160',
         QuarterlyReport: '140'
     },
-    EdinetInfoSeeder: vi.fn(),
+    EdinetInfoSeeder: vi.fn().mockImplementation(() => ({
+        run: vi.fn().mockResolvedValue(undefined)
+    })),
     EdinetRepository: vi.fn()
 }));
 
@@ -52,6 +54,45 @@ describe('EdinetFetchService', () => {
 
     afterEach(() => {
         vi.clearAllMocks();
+    });
+
+    describe('Metadata Update', () => {
+        it('should call EdinetInfoSeeder with correct start date for 3 years', async () => {
+            const { EdinetInfoSeeder } = await import('edinet-ts');
+
+            const years = 3;
+            // @ts-ignore
+            await service.updateMetadata(years);
+
+            expect(EdinetInfoSeeder).toHaveBeenCalledWith(expect.objectContaining({
+                start: expect.any(Date)
+            }));
+
+            const seederCall = vi.mocked(EdinetInfoSeeder).mock.calls[0][0];
+            const startDate = seederCall.start as Date;
+
+            const expectedDate = new Date();
+            expectedDate.setFullYear(expectedDate.getFullYear() - years);
+
+            // Use year comparison as precise timing might differ by milliseconds
+            expect(startDate.getFullYear()).toBe(expectedDate.getFullYear());
+            expect(startDate.getMonth()).toBe(expectedDate.getMonth());
+            expect(startDate.getDate()).toBe(expectedDate.getDate());
+
+            expect(mockLogger.info).toHaveBeenCalledWith(expect.stringContaining('past 3 years'));
+        });
+
+        it('should call EdinetInfoSeeder without start date by default', async () => {
+            const { EdinetInfoSeeder } = await import('edinet-ts');
+
+            // @ts-ignore
+            await service.updateMetadata();
+
+            expect(EdinetInfoSeeder).toHaveBeenCalledWith(expect.objectContaining({
+                start: undefined
+            }));
+            expect(mockLogger.info).toHaveBeenCalledWith(expect.stringContaining('default period'));
+        });
     });
 
     describe('XBRL Caching', () => {
@@ -90,7 +131,8 @@ describe('EdinetFetchService', () => {
                     financialAnalysis: 'Test analysis'
                 }),
                 getKeyMetrics: () => ({}),
-                getMajorShareholders: () => []
+                getMajorShareholders: () => [],
+                getJppfsCor: () => ({})
             });
 
             // Process document
@@ -135,7 +177,8 @@ describe('EdinetFetchService', () => {
                     financialAnalysis: 'Test analysis'
                 }),
                 getKeyMetrics: () => ({}),
-                getMajorShareholders: () => []
+                getMajorShareholders: () => [],
+                getJppfsCor: () => ({})
             });
 
             // Process document
@@ -208,6 +251,20 @@ describe('EdinetFetchService', () => {
     });
 
     describe('Vectorization', () => {
+        it('should initialize with GPU if USE_GPU is set', async () => {
+            process.env.USE_GPU = 'true';
+            await service.init();
+
+            const transformers = await import('@xenova/transformers');
+            expect(transformers.pipeline).toHaveBeenCalledWith(
+                'feature-extraction',
+                'Xenova/paraphrase-multilingual-MiniLM-L12-v2',
+                { device: 'gpu' }
+            );
+
+            delete process.env.USE_GPU;
+        });
+
         it('should return empty array for empty text', async () => {
             const result = await (service as any).vectorize('');
             expect(result).toEqual([]);

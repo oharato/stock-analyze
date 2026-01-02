@@ -99,24 +99,34 @@ export class LargeShareholdingFetchService {
             });
 
             if (targetDocs.length === 0) {
-                // this.logger.debug(`No target docs for ${dateStr}`);
+                return;
+            }
+
+            // Check if parquet already exists
+            const parquetPath = path.join(this.dataDir, `${dateStr}.parquet`);
+            if (fs.existsSync(parquetPath)) {
+                this.logger.info(`Parquet file for ${dateStr} already exists. Skipping.`);
                 return;
             }
 
             this.logger.info(`Found ${targetDocs.length} docs on ${dateStr}. Processing...`);
 
-            // Ensure daily directory exists
-            const dayDir = path.join(this.dataDir, dateStr);
-            if (!fs.existsSync(dayDir)) {
-                fs.mkdirSync(dayDir, { recursive: true });
-            }
+            const records: any[] = [];
 
             for (const doc of targetDocs) {
                 try {
-                    await this.processDocument(doc, dayDir);
+                    const record = await this.processDocument(doc);
+                    if (record) {
+                        records.push(record);
+                    }
                 } catch (e: any) {
                     this.logger.error(`Failed to process ${doc.docID}: ${e.message}`);
                 }
+            }
+
+            if (records.length > 0) {
+                await this.writeParquet(parquetPath, records);
+                this.logger.info(`Saved ${records.length} records to ${parquetPath}`);
             }
 
         } finally {
@@ -124,7 +134,22 @@ export class LargeShareholdingFetchService {
         }
     }
 
-    private async processDocument(doc: any, dayDir: string): Promise<void> {
+    private async writeParquet(filePath: string, records: any[]): Promise<void> {
+        const parquetjs = await import('parquetjs');
+        const { ParquetWriter } = parquetjs.default;
+        const { LARGE_SHAREHOLDING_SCHEMA } = await import('../utils/schema-definitions.js');
+
+        const writer = await ParquetWriter.openFile(LARGE_SHAREHOLDING_SCHEMA, filePath);
+        try {
+            for (const record of records) {
+                await writer.appendRow(record);
+            }
+        } finally {
+            await writer.close();
+        }
+    }
+
+    private async processDocument(doc: any): Promise<any | null> {
         // Check Cache first
         const cacheDir = path.resolve(this.dataDir, '../../xbrl-cache');
         const xbrlPath = path.join(cacheDir, `${doc.docID}.xbrl`);
@@ -132,13 +157,12 @@ export class LargeShareholdingFetchService {
 
         if (fs.existsSync(xbrlPath)) {
             xbrlText = fs.readFileSync(xbrlPath, 'utf-8');
-            // this.logger.debug(`Using cached XBRL for ${doc.docID}`);
         } else {
             // Fetch XBRL Text
             xbrlText = await this.downloader!.fetchXbrl(doc.docID);
             if (!xbrlText) {
                 this.logger.warn(`Could not fetch XBRL for ${doc.docID}`);
-                return;
+                return null;
             }
             if (!fs.existsSync(cacheDir)) {
                 fs.mkdirSync(cacheDir, { recursive: true });
@@ -157,31 +181,20 @@ export class LargeShareholdingFetchService {
         // Extract Extra Info (Purpose, Share Counts, etc.)
         const extraInfo = this.extractExtraInfo(xbrlText);
 
-        // Filenames
-        const baseName = `${safeTicker}-${doc.docID}`;
-
-
-
-        // Create Metadata JSON
-        const metadata = {
+        // Return Data Object
+        return {
             doc_id: doc.docID,
             submit_date: doc.submitDate || doc.date,
             filer_name: doc.filerName,
             ticker: safeTicker,
             doc_description: doc.docDescription,
-            doc_type_code: doc.docTypeCode,
+            doc_type_code: String(doc.docTypeCode), // Ensure string for Parquet
             // Extra Info
             holding_purpose: extraInfo.holdingPurpose,
             holding_ratio: extraInfo.holdingRatio,
             prev_holding_ratio: extraInfo.prevHoldingRatio,
             total_shares_held: extraInfo.totalSharesHeld
         };
-
-        const jsonPath = path.join(dayDir, `${baseName}.json`);
-        // Always overwrite JSON to ensure it has latest fields
-        fs.writeFileSync(jsonPath, JSON.stringify(metadata), 'utf-8');
-
-        this.logger.info(`Saved metadata to ${baseName}.json`);
     }
 
     private extractIssuerTicker(xml: string): string | null {

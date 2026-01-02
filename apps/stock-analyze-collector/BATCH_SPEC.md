@@ -26,22 +26,12 @@ pnpm run run:fetch-edinet --ticker=<TICKER> --years=<YEARS>
     - ライブラリ: `@xenova/transformers`
     - モデル: `Xenova/paraphrase-multilingual-MiniLM-L12-v2`
     - パラメータ: `pooling: 'mean'`, `normalize: true`
-5.  **保存**: `data/raw/edinet` ディレクトリに JSON 形式で保存します。
+    - **GPU高速化**: 環境変数 `USE_GPU=true` を設定することで GPU モードが有効になります（要環境設定）。
+5.  **保存**: `data/raw/edinet` ディレクトリに Parquet 形式で保存します（JSON文字列として保存されるフィールドあり）。
 
-### 出力ファイル形式 (JSON)
-ファイル名: `{ticker}-{date}-{docID}.json`
-```json
-{
-  "ticker": "7203",
-  "docId": "S100XXXX",
-  "date": "2024-06-25",
-  "year": 2024,
-  "business_risks": "抽出されたテキスト...",
-  "business_risks_vector": [0.123, -0.456, ...], // 384次元 (MiniLM-L12-v2の場合)
-  "mda": "抽出されたテキスト...",
-  "mda_vector": [0.789, 0.012, ...]
-}
-```
+### 出力ファイル形式 (Parquet)
+ファイル名: `{ticker}-{date}-{docID}.parquet`
+(Parquetファイル内スキーマは `apps/stock-analyze-collector/src/utils/schema-definitions.ts` 参照)
 
 ---
 
@@ -76,7 +66,8 @@ pnpm run run:fetch-past-fundamentals
 
 ### 処理概要
 - 最新および過去の財務データを取得します。
-- `data/processed/fundamentals/code={code}/fundamentals.parquet` に保存されます。
+- **キャッシュ**: `data/raw/fundamentals` に API レスポンスを Parquet 形式でキャッシュします（内部JSON）。
+- **統合データ**: `data/processed/fundamentals/code={code}/fundamentals.parquet` に統合・保存されます。
 - **注意**: カラム名はソース(IR BANK)の定義に依存し、日本語の財務項目名が含まれる場合があります。
 
 ---

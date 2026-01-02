@@ -17,7 +17,7 @@ const targetTable = tableArg ? tableArg.split('=')[1] : null;
 
 async function consolidateCompanies(conn: any) {
     console.log('Consolidating companies...');
-    await conn.run(`CREATE OR REPLACE TABLE companies AS SELECT * FROM read_json_auto('${DATA_DIR}/master/stock_list.ndjson')`);
+    await conn.run(`CREATE OR REPLACE TABLE companies AS SELECT * FROM read_parquet('${DATA_DIR}/master/stock_list.parquet')`);
 }
 
 async function consolidatePrices(conn: any) {
@@ -31,95 +31,27 @@ async function consolidateFundamentals(conn: any) {
 }
 
 async function consolidateEdinet(conn: any) {
-    console.log('Consolidating edinet (batched)...');
+    console.log('Consolidating edinet (from Parquet)...');
 
     // Increase memory limit and tune performance
     await conn.run("SET memory_limit='16GB'");
     await conn.run("SET threads=4");
     await conn.run("SET preserve_insertion_order=false");
 
-    const edinetDir = path.join(DATA_DIR, 'raw/edinet');
-    const subdirs = fs.readdirSync(edinetDir).filter(f => fs.statSync(path.join(edinetDir, f)).isDirectory());
+    const edinetPattern = path.join(DATA_DIR, 'raw/edinet/**/*.parquet');
+    console.log(`Reading Parquet files from ${edinetPattern}...`);
 
-    console.log(`Found ${subdirs.length} subdirectories. Processing in batches...`);
-
-    // Define explicit schema to avoid inference errors (especially for major_shareholders and vectors)
-    const schema = `
-        columns={
-            'doc_id': 'VARCHAR',
-            'filer_name': 'VARCHAR',
-            'edinet_code': 'VARCHAR',
-            'doc_description': 'VARCHAR',
-            'submit_date': 'VARCHAR',
-            'ticker': 'VARCHAR',
-            'year': 'BIGINT',
-            'business_policy': 'VARCHAR',
-            'business_policy_vector': 'DOUBLE[]',
-            'business_risks': 'VARCHAR',
-            'business_risks_vector': 'DOUBLE[]',
-            'mda': 'VARCHAR',
-            'mda_vector': 'DOUBLE[]',
-            'business_description': 'VARCHAR',
-            'business_description_vector': 'DOUBLE[]',
-            'company_history': 'VARCHAR',
-            'company_history_vector': 'DOUBLE[]',
-            'research_and_development': 'VARCHAR',
-            'research_and_development_vector': 'DOUBLE[]',
-            'corporate_governance': 'VARCHAR',
-            'corporate_governance_vector': 'DOUBLE[]',
-            'net_sales': 'DOUBLE',
-            'operating_income': 'DOUBLE',
-            'ordinary_income': 'DOUBLE',
-            'net_income': 'DOUBLE',
-            'net_assets': 'DOUBLE',
-            'total_assets': 'DOUBLE',
-            'operating_cash_flow': 'DOUBLE',
-            'investing_cash_flow': 'DOUBLE',
-            'financing_cash_flow': 'DOUBLE',
-            'cash_and_equivalents': 'DOUBLE',
-            'earnings_per_share': 'DOUBLE',
-            'book_value_per_share': 'DOUBLE',
-            'equity_to_total_assets_ratio': 'DOUBLE',
-            'rate_of_return_on_equity': 'DOUBLE',
-            'price_earnings_ratio': 'DOUBLE',
-            'payout_ratio': 'DOUBLE',
-            'number_of_issued_shares': 'DOUBLE',
-            'dividend_paid_per_share': 'DOUBLE',
-            'shareholders_equity': 'DOUBLE',
-            'retained_earnings': 'DOUBLE',
-            'short_term_loans': 'DOUBLE',
-            'long_term_loans': 'DOUBLE',
-            'capex': 'DOUBLE',
-            'dividend_total': 'DOUBLE',
-            'buybacks': 'DOUBLE',
-            'roa': 'DOUBLE',
-            'ocf_margin': 'DOUBLE',
-            'total_payout_ratio': 'DOUBLE',
-            'doe': 'DOUBLE',
-            'major_shareholders': 'JSON',
-            'date': 'VARCHAR',
-            'docId': 'VARCHAR'
-        }
-    `;
-
-    let isFirst = true;
-    for (const subdir of subdirs) {
-        console.log(`  Processing batch: ${subdir}...`);
-        const pattern = path.join(edinetDir, subdir, '*.json');
-
-        if (isFirst) {
-            await conn.run(`CREATE OR REPLACE TABLE edinet AS SELECT * FROM read_json_auto('${pattern}', ${schema}, union_by_name=true)`);
-            isFirst = false;
-        } else {
-            await conn.run(`INSERT INTO edinet SELECT * FROM read_json_auto('${pattern}', ${schema}, union_by_name=true)`);
-        }
+    try {
+        await conn.run(`CREATE OR REPLACE TABLE edinet AS SELECT * FROM read_parquet('${edinetPattern}', union_by_name=true)`);
+    } catch (e: any) {
+        console.warn('Failed to consolidate edinet table (maybe no files found?):', e.message);
     }
     console.log('Edinet consolidation finished.');
 }
 
 async function consolidateLargeShareholdings(conn: any) {
     console.log('Consolidating large_shareholdings...');
-    await conn.run(`CREATE OR REPLACE TABLE large_shareholdings AS SELECT * FROM read_json_auto('${DATA_DIR}/raw/large-shareholdings/**/*.json', union_by_name=true)`);
+    await conn.run(`CREATE OR REPLACE TABLE large_shareholdings AS SELECT * FROM read_parquet('${DATA_DIR}/raw/large-shareholdings/**/*.parquet', union_by_name=true)`);
 }
 
 async function main() {

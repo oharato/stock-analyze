@@ -122,18 +122,19 @@ export class FetchFundamentalsService {
                 const dataTypesToFetch = yearCode === '0000' ? [...FY_DATA_TYPES, ...Q_DATA_TYPES] : FY_DATA_TYPES;
 
                 for (const dataType of dataTypesToFetch) {
-                    const fileName = `${dataType}.json`;
+                    const sourceFileName = `${dataType}.json`;
+                    const localFileName = `${dataType}.parquet`;
 
                     // yearCode '0000' (最新データ) は常に取得
                     // それ以外は force フラグまたはファイルが存在しない場合のみ取得
-                    const shouldFetch = yearCode === '0000' || this.force || !this.rawJsonRepository.fileExists(yearCode, fileName);
+                    const shouldFetch = yearCode === '0000' || this.force || !this.rawJsonRepository.fileExists(yearCode, localFileName);
 
                     if (!shouldFetch) {
-                        this.logger.info(`File already exists. Skipping fetch: ${yearCode}/${fileName}`);
+                        this.logger.info(`File already exists. Skipping fetch: ${yearCode}/${localFileName}`);
                         // 既存ファイルからデータを読み込む
-                        const existingData = await this.rawJsonRepository.load(yearCode, fileName);
+                        const existingData = await this.rawJsonRepository.load(yearCode, localFileName);
                         if (existingData) {
-                            const key = `${yearCode}_${fileName}`;
+                            const key = `${yearCode}_${localFileName}`;
                             const dataWithMeta = new Map<string, any>();
                             if (existingData.item) {
                                 for (const [code, value] of Object.entries(existingData.item)) {
@@ -145,15 +146,15 @@ export class FetchFundamentalsService {
                         continue;
                     }
 
-                    this.logger.info(`Fetching: ${yearCode}/${fileName}`, { yearCode, fileName });
-                    const data = await this.irbankClient.fetchFinancialData(yearCode, fileName);
+                    this.logger.info(`Fetching: ${yearCode}/${sourceFileName}`, { yearCode, sourceFileName });
+                    const data = await this.irbankClient.fetchFinancialData(yearCode, sourceFileName);
 
                     if (data) {
                         // 即座に保存
-                        await this.rawJsonRepository.save(yearCode, fileName, data);
-                        this.logger.info(`Saved immediately: ${yearCode}/${fileName}`);
+                        await this.rawJsonRepository.save(yearCode, localFileName, data);
+                        this.logger.info(`Saved immediately: ${yearCode}/${localFileName}`);
 
-                        const key = `${yearCode}_${fileName}`;
+                        const key = `${yearCode}_${localFileName}`;
 
                         // メタデータとitemデータの両方を保存
                         const dataWithMeta = new Map<string, any>();
