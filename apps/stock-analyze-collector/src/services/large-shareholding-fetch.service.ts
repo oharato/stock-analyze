@@ -1,53 +1,44 @@
-
 import * as fs from 'fs';
 import * as path from 'path';
-import { EdinetXbrlDownloader, EdinetDocumentType, EdinetInfoSeeder, EdinetRepository } from 'edinet-ts';
+import { EdinetDocumentType, EdinetRepository } from 'edinet-ts';
 import { LoggerService } from './logger.service.js';
-import * as unzipper from 'unzipper';
+import { EdinetCommonService } from './edinet-common.service.js';
 
 export class LargeShareholdingFetchService {
-    private downloader: EdinetXbrlDownloader | null = null;
+    private commonService: EdinetCommonService;
     private readonly DEFAULT_FETCH_MONTHS = 3;
 
     constructor(
         private readonly logger: LoggerService,
-        private readonly apiKey: string | undefined,
+        apiKey: string | undefined,
         private readonly dataDir: string,
         private readonly edinetDbPath: string
-    ) { }
-
-    /**
-     * Initialize services
-     */
-    async init(): Promise<void> {
-        this.downloader = new EdinetXbrlDownloader({
-            apiKey: this.apiKey,
-            rootDir: this.dataDir,
-            enableRateLimit: true,
-            requestsPerSecond: 3
-        });
+    ) {
+        this.commonService = new EdinetCommonService(logger, apiKey, dataDir, edinetDbPath);
     }
 
     /**
-     * Process data for the specified number of months (default: 3)
+     * サービスの初期化
+     */
+    async init(): Promise<void> {
+        await this.commonService.init();
+    }
+
+    /**
+     * 指定された月数分のデータを処理 (デフォルト: 3)
      */
     async processDateRange(months: number = this.DEFAULT_FETCH_MONTHS): Promise<void> {
-        if (!this.downloader) {
-            throw new Error('Service not initialized. Call init() first.');
-        }
+        // 1. メタデータ更新 (Seed)
+        await this.commonService.updateMetadata(months);
 
-        // 1. Update Metadata (Seed) for the required range
-        // Note: Seeder typically syncs recent data by default logic or we can ensure coverage
-        await this.updateMetadata(months);
-
-        // 2. Calculate Date Range
+        // 2. 日付範囲の計算
         const endDate = new Date();
         const startDate = new Date();
         startDate.setMonth(startDate.getMonth() - months);
 
-        this.logger.info(`Processing Large Shareholding Reports from ${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}...`);
+        this.logger.info(`大量保有報告書の処理を開始: ${startDate.toISOString().split('T')[0]} から ${endDate.toISOString().split('T')[0]} まで...`);
 
-        // 3. Iterate through each day
+        // 3. 各日をループ処理
         let currentDate = new Date(startDate);
         while (currentDate <= endDate) {
             const dateStr = currentDate.toISOString().split('T')[0];
@@ -56,35 +47,11 @@ export class LargeShareholdingFetchService {
         }
     }
 
-    private async updateMetadata(months: number = this.DEFAULT_FETCH_MONTHS): Promise<void> {
-        this.logger.info('Updating EDINET metadata (Seeding)...');
-
-        const startDate = new Date();
-        startDate.setMonth(startDate.getMonth() - months);
-
-        const seeder = new EdinetInfoSeeder({
-            apiKey: this.apiKey!,
-            dbPath: this.edinetDbPath,
-            skipExisting: true, // Optimistic skip
-            start: startDate,
-            onProgress: (processed, total) => {
-                if (processed % 100 === 0 || processed === total) {
-                    this.logger.info(`Seed Progress: ${processed}/${total}`);
-                }
-            },
-            onError: (error, dateStr) => {
-                this.logger.warn(`Seed Error on ${dateStr}: ${String(error)}`);
-            }
-        });
-
-        await seeder.run();
-    }
-
     private async processDay(dateStr: string): Promise<void> {
         const repo = new EdinetRepository(this.edinetDbPath);
 
         try {
-            // Find target documents: LargeShareholding(340), Change(350), Correction(360)
+            // 対象ドキュメント検索: 大量保有(340), 変更(350), 訂正(360)
             const docs = await repo.findDocuments({});
             const targetDocs = docs.filter((d: any) => {
                 const dDate = d.submitDate || d.date;
@@ -102,14 +69,14 @@ export class LargeShareholdingFetchService {
                 return;
             }
 
-            // Check if parquet already exists
+            // Parquetファイルが存在するか確認
             const parquetPath = path.join(this.dataDir, `${dateStr}.parquet`);
             if (fs.existsSync(parquetPath)) {
-                this.logger.info(`Parquet file for ${dateStr} already exists. Skipping.`);
+                this.logger.info(`日付 ${dateStr} のParquetファイルは既に存在します。スキップします。`);
                 return;
             }
 
-            this.logger.info(`Found ${targetDocs.length} docs on ${dateStr}. Processing...`);
+            this.logger.info(`日付 ${dateStr} に ${targetDocs.length} 件のドキュメントを発見。処理を開始します...`);
 
             const records: any[] = [];
 
@@ -120,13 +87,13 @@ export class LargeShareholdingFetchService {
                         records.push(record);
                     }
                 } catch (e: any) {
-                    this.logger.error(`Failed to process ${doc.docID}: ${e.message}`);
+                    this.logger.error(`${doc.docID} の処理に失敗しました: ${e.message}`);
                 }
             }
 
             if (records.length > 0) {
                 await this.writeParquet(parquetPath, records);
-                this.logger.info(`Saved ${records.length} records to ${parquetPath}`);
+                this.logger.info(`${records.length} 件のレコードを ${parquetPath} に保存しました。`);
             }
 
         } finally {
@@ -150,38 +117,21 @@ export class LargeShareholdingFetchService {
     }
 
     private async processDocument(doc: any): Promise<any | null> {
-        // Check Cache first
-        const cacheDir = path.resolve(this.dataDir, '../../xbrl-cache');
-        const xbrlPath = path.join(cacheDir, `${doc.docID}.xbrl`);
-        let xbrlText: string | null = null;
-
-        if (fs.existsSync(xbrlPath)) {
-            xbrlText = fs.readFileSync(xbrlPath, 'utf-8');
-        } else {
-            // Fetch XBRL Text
-            xbrlText = await this.downloader!.fetchXbrl(doc.docID);
-            if (!xbrlText) {
-                this.logger.warn(`Could not fetch XBRL for ${doc.docID}`);
-                return null;
-            }
-            if (!fs.existsSync(cacheDir)) {
-                fs.mkdirSync(cacheDir, { recursive: true });
-            }
-            fs.writeFileSync(xbrlPath, xbrlText, 'utf-8');
-            this.logger.info(`Cached XBRL to ${xbrlPath}`);
+        // 共通サービスを使用してXBRLテキストを取得 (キャッシュ処理含む)
+        const xbrlText = await this.commonService.fetchXbrl(doc.docID);
+        if (!xbrlText) {
+            this.logger.warn(`XBRLを取得できませんでした: ${doc.docID}`);
+            return null;
         }
 
-        // Extract Ticker
+        // 銘柄コードの抽出
         const ticker = this.extractIssuerTicker(xbrlText);
-        // if (!ticker) {
-        //     this.logger.warn(`Could not extract issuer ticker for ${doc.docID}. Using 'UNKNOWN'.`);
-        // }
         const safeTicker = ticker || 'UNKNOWN';
 
-        // Extract Extra Info (Purpose, Share Counts, etc.)
+        // 追加情報 (保有目的、保有割合など) の抽出
         const extraInfo = this.extractExtraInfo(xbrlText);
 
-        // Return Data Object
+        // データオブジェクトを返す
         return {
             doc_id: doc.docID,
             submit_date: doc.submitDate || doc.date,
@@ -189,7 +139,7 @@ export class LargeShareholdingFetchService {
             ticker: safeTicker,
             doc_description: doc.docDescription,
             doc_type_code: String(doc.docTypeCode), // Ensure string for Parquet
-            // Extra Info
+            // 追加情報
             holding_purpose: extraInfo.holdingPurpose,
             holding_ratio: extraInfo.holdingRatio,
             prev_holding_ratio: extraInfo.prevHoldingRatio,
@@ -198,19 +148,19 @@ export class LargeShareholdingFetchService {
     }
 
     private extractIssuerTicker(xml: string): string | null {
-        // Try jplvh_cor:SecurityCodeOfIssuer first (Large Shareholding specific)
+        // jplvh_cor:SecurityCodeOfIssuer を最初に試行 (大量保有報告書固有)
         const matchSpecific = xml.match(/<jplvh_cor:SecurityCodeOfIssuer[^>]*>(\d{4})\d?<\/jplvh_cor:SecurityCodeOfIssuer>/);
         if (matchSpecific) {
             return matchSpecific[1];
         }
 
-        // Attempt 2: Standard SecurityCode tag (jpcrp_cor etc)
+        // 試行 2: 標準的な SecurityCode タグ (jpcrp_cor など)
         const match = xml.match(/<([a-zA-Z0-9_]+):SecurityCode[^>]*>(\d{4})0?<\/\1:SecurityCode>/);
         if (match) {
-            return match[2]; // Return 4 digit
+            return match[2]; // 4桁を返す
         }
 
-        // Loose match
+        // 緩いマッチング
         const matchLoose = xml.match(/:SecurityCode[^>]*>\s*(\d{4})\d?\s*<\//);
         if (matchLoose) {
             return matchLoose[1];
@@ -225,17 +175,9 @@ export class LargeShareholdingFetchService {
         prevHoldingRatio?: number,
         totalSharesHeld?: number
     } {
-        const extractText = (tag: string) => {
-            const regex = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`);
-            const match = xml.match(regex);
-            return match ? match[1].trim() : undefined;
-        };
-        const extractNumber = (tag: string) => {
-            const val = extractText(tag);
-            if (!val) return undefined;
-            const num = parseFloat(val);
-            return isNaN(num) ? undefined : num;
-        };
+        // 共通サービスのヘルパーを使用
+        const extractText = (tag: string) => this.commonService.extractText(xml, tag);
+        const extractNumber = (tag: string) => this.commonService.extractNumber(xml, tag);
 
         return {
             holdingPurpose: extractText('jplvh_cor:PurposeOfHolding'),

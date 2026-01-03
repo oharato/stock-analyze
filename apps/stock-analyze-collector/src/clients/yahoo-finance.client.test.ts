@@ -14,6 +14,7 @@ vi.mock('yahoo-finance2', () => {
       return {
         historical: mockedHistorical,
         quote: mockedQuote,
+        chart: mockedHistorical, // chart should use the same mock to respect test configurations
       };
     }),
   };
@@ -28,8 +29,9 @@ describe('YahooFinanceClient', () => {
   });
 
   it('should fetch historical data correctly', async () => {
-    const dummyHistoricalData = [{ date: new Date(), open: 100, close: 101 }];
-    mockedHistorical.mockResolvedValue(dummyHistoricalData);
+    const dummyQuotes = [{ date: new Date(), open: 100, close: 101 }];
+    const dummyResult = { quotes: dummyQuotes };
+    mockedHistorical.mockResolvedValue(dummyResult);
 
     const ticker = '1234.T';
     const options = { period1: '2023-01-01', period2: '2023-01-05', interval: '1d' as const };
@@ -37,7 +39,23 @@ describe('YahooFinanceClient', () => {
 
     expect(mockedHistorical).toHaveBeenCalledTimes(1);
     expect(mockedHistorical).toHaveBeenCalledWith(ticker, options);
-    expect(result).toEqual(dummyHistoricalData);
+    // The client maps the result, so checking individual properties or equality is fine
+    // But since dummyQuotes has matching structure (open, close etc), it should be equal
+    // Note: client maps 'adjclose' -> 'adjClose'. dummyQuotes doesn't have it, so undefined.
+    // The test dummy data might strictly need to match output but check 'toEqual' handles subset?
+    // Actually the client MAPS it explicitly.
+    // return result.quotes.map((q: any) => ({ date: q.date, ... adjClose: q.adjclose }))
+
+    // Let's ensure expectation matches the manual mapping in client
+    expect(result).toEqual([{
+      date: dummyQuotes[0].date,
+      open: dummyQuotes[0].open,
+      high: undefined,
+      low: undefined,
+      close: dummyQuotes[0].close,
+      adjClose: undefined,
+      volume: undefined
+    }]);
   });
 
   it('should fetch quote data correctly', async () => {

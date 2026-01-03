@@ -40,18 +40,16 @@ describe('FundamentalRepository', () => {
         const mergedData = new Map<string, any[]>();
 
         const yearlyData = [
-            { year: '2020', sales: 150000000, profit: '-' }, // 数値とハイフン
-            { year: '2021', sales: '-', profit: 10000000 },  // ハイフンと数値
-            { year: '2022', sales: 160000000, profit: 20000000 }, // 両方数値
+            { code: code, year: '2020', 売上高: 150000000, 営業利益: '-' }, // 数値とハイフン
+            { code: code, year: '2021', 売上高: '-', 営業利益: 10000000 },  // ハイフンと数値
+            { code: code, year: '2022', 売上高: 160000000, 営業利益: 20000000 }, // 両方数値
         ];
 
         mergedData.set(code, yearlyData);
 
         await repository.save(mergedData);
 
-        // プロジェクトルートからの相対パスを計算してファイルの存在を確認
-        // Repositoryの実装では src/repositories から4階層上がルートとなっている
-        // テスト実行時のCWDは apps/stock-analyze-collector なので、2階層上がワークスペースルートとなる
+        // ... (path setup omitted) ...
         const workspaceRoot = path.join(process.cwd(), '..', '..');
         const savedPath = path.join(workspaceRoot, 'data', 'processed', 'fundamentals', `code=${code}`, 'fundamentals.parquet');
 
@@ -70,17 +68,16 @@ describe('FundamentalRepository', () => {
 
         expect(records.length).toBe(3);
 
-        // 行1: sales=150000000, profit='-' -> DOUBLE型のカラムに '-' は入れられないため null (undefined) になるはず
         const row1 = records.find(r => r.year === '2020');
-        expect(row1?.sales).toBe(150000000);
-        expect(row1?.profit).toBeUndefined();
+        expect(row1?.['売上高']).toBe(150000000);
+        expect(row1?.['営業利益']).toBeUndefined();
 
         const row2 = records.find(r => r.year === '2021');
-        expect(row2?.sales).toBeUndefined();
-        expect(row2?.profit).toBe(10000000);
+        expect(row2?.['売上高']).toBeUndefined();
+        expect(row2?.['営業利益']).toBe(10000000);
 
         const row3 = records.find(r => r.year === '2022');
-        expect(row3?.sales).toBe(160000000);
-        expect(row3?.profit).toBe(20000000);
+        expect(row3?.['売上高']).toBe(160000000);
+        expect(row3?.['営業利益']).toBe(20000000);
     });
 });

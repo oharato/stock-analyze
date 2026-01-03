@@ -50,6 +50,9 @@ importers:
       axios:
         specifier: ^1.13.1
         version: 1.13.2
+      better-sqlite3:
+        specifier: ^12.5.0
+        version: 12.5.0
       dotenv:
         specifier: ^17.2.3
         version: 17.2.3
@@ -75,6 +78,9 @@ importers:
         specifier: ^18.0.0
         version: 18.0.0
     devDependencies:
+      '@types/better-sqlite3':
+        specifier: ^7.6.13
+        version: 7.6.13
       '@types/node':
         specifier: ^24.6.0
         version: 24.10.1
@@ -1999,6 +2005,9 @@ packages:
 
   '@types/alpinejs@3.13.11':
     resolution: {integrity: sha512-3KhGkDixCPiLdL3Z/ok1GxHwLxEWqQOKJccgaQL01wc0EVM2tCTaqlC3NIedmxAXkVzt/V6VTM8qPgnOHKJ1MA==}
+
+  '@types/better-sqlite3@7.6.13':
+    resolution: {integrity: sha512-NMv9ASNARoKksWtsq/SHakpYAYnhBrQgGD8zkLYk/jaK8jUGn08CfEdTRgYhMypUQAfzSP8W6gNLe0q19/t4VA==}
 
   '@types/chai@5.2.3':
     resolution: {integrity: sha512-Mw558oeA9fFbv65/y4mHtXDs9bPnFMZAL/jxdPFUpOHHIXX91mcgEHbS5Lahr+pwZFR8A7GQleRWeI6cGFC2UA==}
@@ -5369,6 +5378,10 @@ snapshots:
   '@tsconfig/node16@1.0.4': {}
 
   '@types/alpinejs@3.13.11': {}
+
+  '@types/better-sqlite3@7.6.13':
+    dependencies:
+      '@types/node': 24.10.1
 
   '@types/chai@5.2.3':
     dependencies:
