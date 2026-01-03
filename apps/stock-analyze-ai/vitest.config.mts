@@ -5,6 +5,13 @@ export default defineWorkersConfig({
 		poolOptions: {
 			workers: {
 				wrangler: { configPath: './wrangler.jsonc' },
+				miniflare: {
+					serviceBindings: {
+						MCP_SERVER: async (request: Request) => {
+							return new Response('Mock MCP Server Response');
+						},
+					},
+				},
 			},
 		},
 	},

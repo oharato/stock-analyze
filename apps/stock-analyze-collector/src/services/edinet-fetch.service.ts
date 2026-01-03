@@ -1,3 +1,4 @@
+import { EdinetFinancial } from 'stock-analyze-domain';
 import * as fs from 'fs';
 import * as path from 'path';
 import { EdinetDocumentType, EdinetRepository } from 'edinet-ts';
@@ -264,7 +265,7 @@ export class EdinetFetchService {
             }));
 
             const results = await Promise.all(promises);
-            const newRows = results.filter((row): row is any => row !== null);
+            const newRows = results.filter((row): row is EdinetFinancial => row !== null);
             process.stdout.write('\n');
 
             if (newRows.length > 0) {

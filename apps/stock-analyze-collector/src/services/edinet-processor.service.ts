@@ -2,7 +2,7 @@ import { EdinetXbrlParser, QualitativeInfo, KeyMetrics, CommonMetadata, Sharehol
 import { LoggerService } from './logger.service.js';
 import { EdinetCommonService } from './edinet-common.service.js';
 import { VectorizationService } from './vectorization.service.js';
-import { EdinetDataWithVectors } from '../types/edinet.js';
+import { EdinetFinancial } from 'stock-analyze-domain';
 
 export class EdinetProcessorService {
     private parser: EdinetXbrlParser;
@@ -18,7 +18,7 @@ export class EdinetProcessorService {
     /**
      * ダウンロード、パース、ベクトル化を行い、データオブジェクトを返す
      */
-    async process(doc: any, docDate: string, ticker: string): Promise<any | null> {
+    async process(doc: any, docDate: string, ticker: string): Promise<EdinetFinancial | null> {
         // XBRL取得 (キャッシュまたはAPI)
         const xbrlText = await this.commonService.fetchXbrl(doc.docID);
         if (!xbrlText) return null;
@@ -99,7 +99,7 @@ export class EdinetProcessorService {
         metrics: KeyMetrics,
         shareholders: ShareholderInfo[],
         parsed: any
-    ): Promise<EdinetDataWithVectors> {
+    ): Promise<Omit<EdinetFinancial, 'major_shareholders'> & { major_shareholders: ShareholderInfo[] }> {
         // テキストフィールド
         const businessPolicy = qualInfo.businessPolicy || '';
         const businessRisks = qualInfo.businessRisks || '';

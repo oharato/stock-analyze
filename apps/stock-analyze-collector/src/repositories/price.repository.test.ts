@@ -13,7 +13,7 @@ import * as fs from 'fs';
 import path from 'path';
 import { ParquetWriter } from 'parquetjs';
 import { Price } from 'stock-analyze-domain';
-import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 
 // parquetjsモジュールをモック化
 // parquetjsモジュールをモック化
@@ -65,7 +65,7 @@ describe('PriceRepository', () => {
     vi.clearAllMocks(); // すべてのモックをリセット
   });
 
-  it('should write monthly parquet file correctly', async () => {
+  it('should write parquet file correctly', async () => {
     vi.mocked(fs.promises.mkdir).mockResolvedValue(undefined);
     const mockAppendRow = vi.fn().mockImplementation(() => Promise.resolve());
     const mockClose = vi.fn().mockImplementation(() => Promise.resolve());
@@ -75,50 +75,24 @@ describe('PriceRepository', () => {
     };
     (ParquetWriter.openFile as any).mockResolvedValue(mockParquetWriter);
 
-    await priceRepository.writeMonthParquetFile(code, year, month, dummyPrices);
+    const expectedOutputDir = path.join(__dirname, '..', '..', '..', '..', 'data', 'processed', 'prices');
+    const expectedOutputPath = path.join(expectedOutputDir, `${code}.parquet`);
+
+    await priceRepository.writeParquetFile(code, dummyPrices);
 
     expect(fs.promises.mkdir).toHaveBeenCalledTimes(1);
     expect(fs.promises.mkdir).toHaveBeenCalledWith(expectedOutputDir, { recursive: true });
     expect(ParquetWriter.openFile).toHaveBeenCalledTimes(1);
-    expect(ParquetWriter.openFile).toHaveBeenCalledWith(expect.any(Object), expectedOutputPath); // schemaはanyでチェック
+    expect(ParquetWriter.openFile).toHaveBeenCalledWith(expect.any(Object), expectedOutputPath);
     expect(mockAppendRow).toHaveBeenCalledTimes(dummyPrices.length);
     expect(mockClose).toHaveBeenCalledTimes(1);
-  });
-
-  it('should check if stock price directory exists', async () => {
-    vi.mocked(fs.promises.access).mockResolvedValue(undefined); // ディレクトリが存在する場合
-
-    const exists = await priceRepository.checkStockPriceDirectoryExists(code);
-
-    expect(fs.promises.access).toHaveBeenCalledTimes(1);
-    expect(fs.promises.access).toHaveBeenCalledWith(expectedOutputDir);
-    expect(exists).toBe(true);
-  });
-
-  it('should return false if stock price directory does not exist (ENOENT error)', async () => {
-    const error = new Error('File not found') as any;
-    error.code = 'ENOENT';
-    vi.mocked(fs.promises.access).mockRejectedValue(error); // ディレクトリが存在しない場合
-
-    const exists = await priceRepository.checkStockPriceDirectoryExists(code);
-
-    expect(fs.promises.access).toHaveBeenCalledTimes(1);
-    expect(exists).toBe(false);
-  });
-
-  it('should throw an error if checking directory fails for other reasons', async () => {
-    const errorMessage = 'Permission denied';
-    vi.mocked(fs.promises.access).mockRejectedValue(new Error(errorMessage)); // その他のエラー
-
-    await expect(priceRepository.checkStockPriceDirectoryExists(code)).rejects.toThrow(errorMessage);
-    expect(fs.promises.access).toHaveBeenCalledTimes(1);
   });
 
   it('should not write row if volume is null or undefined', async () => {
     const pricesWithInvalidVolume: Price[] = [
       { date: new Date('2023-01-01'), code: '1234', open: 100, high: 110, low: 90, close: 105, adjClose: 105, volume: BigInt(1000) },
-      { date: new Date('2023-01-02'), code: '1234', open: 105, high: 115, low: 95, close: 110, adjClose: 110, volume: undefined as any }, // volumeがundefined
-      { date: new Date('2023-01-03'), code: '1234', open: 105, high: 115, low: 95, close: 110, adjClose: 110, volume: null as any }, // volumeがnull
+      { date: new Date('2023-01-02'), code: '1234', open: 105, high: 115, low: 95, close: 110, adjClose: 110, volume: undefined as any },
+      { date: new Date('2023-01-03'), code: '1234', open: 105, high: 115, low: 95, close: 110, adjClose: 110, volume: null as any },
     ];
 
     vi.mocked(fs.promises.mkdir).mockResolvedValue(undefined);
@@ -128,9 +102,9 @@ describe('PriceRepository', () => {
       close: vi.fn().mockResolvedValue(undefined),
     } as any);
 
-    await priceRepository.writeMonthParquetFile(code, year, month, pricesWithInvalidVolume);
+    await priceRepository.writeParquetFile(code, pricesWithInvalidVolume);
 
-    expect(mockAppendRow).toHaveBeenCalledTimes(1); // 有効なvolumeを持つ行のみが書き込まれる
+    expect(mockAppendRow).toHaveBeenCalledTimes(1);
     expect(mockAppendRow).toHaveBeenCalledWith(expect.objectContaining({ code: '1234', volume: BigInt(1000) }));
   });
 });

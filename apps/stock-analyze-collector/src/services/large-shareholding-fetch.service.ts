@@ -1,3 +1,4 @@
+import { LargeShareholding } from 'stock-analyze-domain';
 import * as fs from 'fs';
 import * as path from 'path';
 import { EdinetDocumentType, EdinetRepository } from 'edinet-ts';
@@ -82,7 +83,7 @@ export class LargeShareholdingFetchService {
 
             this.logger.info(`日付 ${dateStr} に ${targetDocs.length} 件のドキュメントを発見。処理を開始します...`);
 
-            const records: any[] = [];
+            const records: LargeShareholding[] = [];
 
             for (const doc of targetDocs) {
                 try {
@@ -120,7 +121,7 @@ export class LargeShareholdingFetchService {
         }
     }
 
-    private async processDocument(doc: any): Promise<any | null> {
+    private async processDocument(doc: any): Promise<LargeShareholding | null> {
         // 共通サービスを使用してXBRLテキストを取得 (キャッシュ処理含む)
         const xbrlText = await this.commonService.fetchXbrl(doc.docID);
         if (!xbrlText) {

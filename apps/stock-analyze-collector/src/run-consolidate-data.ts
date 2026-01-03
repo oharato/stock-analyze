@@ -15,86 +15,86 @@ const args = process.argv.slice(2);
 const tableArg = args.find(arg => arg.startsWith('--table='));
 const targetTable = tableArg ? tableArg.split('=')[1] : null;
 
-async function consolidateCompanies(conn: any) {
-    console.log('Consolidating companies...');
-    await conn.run(`CREATE OR REPLACE TABLE companies AS SELECT * FROM read_parquet('${DATA_DIR}/master/stock_list.parquet')`);
+interface TableConfig {
+    name: string;
+    parquetPattern: string;
+    duckDbOptions?: { [key: string]: string };
 }
 
+const TABLES: TableConfig[] = [
+    {
+        name: 'companies',
+        parquetPattern: 'master/stock_list.parquet',
+    },
+    {
+        name: 'prices',
+        parquetPattern: 'processed/prices/*.parquet',
+        duckDbOptions: {
+            memory_limit: '16GB',
+            threads: '4'
+        }
+    },
+    {
+        name: 'fundamentals',
+        parquetPattern: 'processed/fundamentals/**/*.parquet',
+    },
+    {
+        name: 'edinet',
+        parquetPattern: 'processed/edinet/*.parquet',
+        duckDbOptions: {
+            memory_limit: '16GB',
+            threads: '4'
+        }
+    },
+    {
+        name: 'large_shareholdings',
+        parquetPattern: 'processed/large-shareholdings/*.parquet',
+    }
+];
 
-async function consolidatePrices(conn: any) {
-    console.log('Consolidating prices...');
-    await conn.run("SET memory_limit='16GB'");
-    await conn.run("SET threads=4");
-
-    const pricesDir = path.join(DATA_DIR, 'processed/prices');
-    if (!fs.existsSync(pricesDir)) {
-        console.log('Prices directory not found, skipping.');
+async function consolidateTable(conn: any, config: TableConfig) {
+    if (targetTable && targetTable !== config.name) {
         return;
     }
 
-    // Read all parquet files in the directory
-    await conn.run(`CREATE OR REPLACE TABLE prices AS SELECT * FROM read_parquet('${pricesDir}/*.parquet', union_by_name=true)`);
-    console.log('\nPrices consolidation finished.');
-}
+    console.log(`Consolidating ${config.name}...`);
+    console.time(`consolidate_${config.name}`);
 
-async function consolidateFundamentals(conn: any) {
-    console.log('Consolidating fundamentals...');
-    await conn.run(`CREATE OR REPLACE TABLE fundamentals AS SELECT * FROM read_parquet('${DATA_DIR}/processed/fundamentals/**/*.parquet', union_by_name=true)`);
-}
-
-
-async function consolidateEdinet(conn: any) {
-    console.log('Consolidating edinet (from Parquet)...');
-
-    // Increase memory limit and tune performance
-    await conn.run("SET memory_limit='16GB'");
-    await conn.run("SET threads=4");
-    await conn.run("SET preserve_insertion_order=false");
-
-    const edinetBaseDir = path.join(DATA_DIR, 'processed/edinet');
-    if (!fs.existsSync(edinetBaseDir)) {
-        console.log('Edinet directory not found, skipping.');
-        return;
-    }
-
-    const files = fs.readdirSync(edinetBaseDir).filter(f => f.endsWith('.parquet')).sort();
-    console.log(`Found ${files.length} edinet monthly files.`);
-
-    let created = false;
-    let count = 0;
-    const total = files.length;
-    for (const file of files) {
-        count++;
-        const filePath = path.join(edinetBaseDir, file);
-
-        try {
-            if (!created) {
-                await conn.run(`CREATE OR REPLACE TABLE edinet AS SELECT * FROM read_parquet('${filePath}', union_by_name=true)`);
-                created = true;
-            } else {
-                await conn.run(`INSERT INTO edinet SELECT * FROM read_parquet('${filePath}', union_by_name=true)`);
-            }
-        } catch (e: any) {
-            console.warn(`Failed to process edinet batch ${file}:`, e.message);
-        }
-
-        if (total < 100 || count % 10 === 0 || count === total) {
-            console.log(`[Edinet] Processed ${count}/${total} (${((count / total) * 100).toFixed(1)}%)`);
+    // Apply specific options if any
+    if (config.duckDbOptions) {
+        for (const [key, value] of Object.entries(config.duckDbOptions)) {
+            await conn.run(`SET ${key}='${value}'`);
         }
     }
-    console.log('Edinet consolidation finished.');
-}
 
-async function consolidateLargeShareholdings(conn: any) {
-    console.log('Consolidating large_shareholdings...');
-    await conn.run(`CREATE OR REPLACE TABLE large_shareholdings AS SELECT * FROM read_parquet('${DATA_DIR}/processed/large-shareholdings/**/*.parquet', union_by_name=true)`);
+    // Construct full path pattern
+    // Note: If pattern contains *, we shouldn't use fs.existsSync directly on it mostly,
+    // but for the base dir check it is valid.
+    // However, DuckDB handles globbing well.
+    // Let's resolve the full path for DuckDB.
+    const fullUnknownPath = path.join(DATA_DIR, config.parquetPattern);
+
+    // Check if any files exist (naive check for the directory at least)
+    // We can just try to run it and catch error if no files match
+    try {
+        await conn.run(`CREATE OR REPLACE TABLE ${config.name} AS SELECT * FROM read_parquet('${fullUnknownPath}', union_by_name=true)`);
+
+        // Log count
+        await logRecordCount(conn, config.name);
+
+    } catch (e: any) {
+        // DuckDB might throw if no files found or glob matches nothing
+        console.warn(`Failed to consolidate ${config.name} (files likely missing):`, e.message);
+    }
+
+    console.timeEnd(`consolidate_${config.name}`);
 }
 
 async function logRecordCount(conn: any, tableName: string) {
     try {
         const result = await conn.run(`SELECT count(*) as count FROM ${tableName}`);
         const rows = await result.getRows();
-        // rows[0][0] might be a BigInt or number depending on the driver version
+        // rows[0][0] might be a BigInt or number
         const count = rows[0][0];
         console.log(`[Table: ${tableName}] Record count: ${count.toString()}`);
     } catch (e: any) {
@@ -116,39 +116,10 @@ async function main() {
     const conn = await db.connect();
 
     try {
-        if (!targetTable || targetTable === 'companies') {
-            console.time('consolidateCompanies');
-            await consolidateCompanies(conn);
-            await logRecordCount(conn, 'companies');
-            console.timeEnd('consolidateCompanies');
+        for (const config of TABLES) {
+            await consolidateTable(conn, config);
         }
-        if (!targetTable || targetTable === 'prices') {
-            console.time('consolidatePrices');
-            await consolidatePrices(conn);
-            await logRecordCount(conn, 'prices');
-            console.timeEnd('consolidatePrices');
-        }
-        if (!targetTable || targetTable === 'fundamentals') {
-            console.time('consolidateFundamentals');
-            await consolidateFundamentals(conn);
-            await logRecordCount(conn, 'fundamentals');
-            console.timeEnd('consolidateFundamentals');
-        }
-        if (!targetTable || targetTable === 'edinet') {
-            console.time('consolidateEdinet');
-            await consolidateEdinet(conn);
-            await logRecordCount(conn, 'edinet');
-            console.timeEnd('consolidateEdinet');
-        }
-        if (!targetTable || targetTable === 'large_shareholdings') {
-            console.time('consolidateLargeShareholdings');
-            await consolidateLargeShareholdings(conn);
-            await logRecordCount(conn, 'large_shareholdings');
-            console.timeEnd('consolidateLargeShareholdings');
-        }
-
         console.log('--- Consolidation Complete ---');
-
     } catch (e: any) {
         console.error('Consolidation failed:', e);
         process.exit(1);
