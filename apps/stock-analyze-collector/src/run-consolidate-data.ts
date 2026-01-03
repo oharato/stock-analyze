@@ -19,6 +19,7 @@ interface TableConfig {
     name: string;
     parquetPattern: string;
     duckDbOptions?: { [key: string]: string };
+    orderBy?: string;
 }
 
 const TABLES: TableConfig[] = [
@@ -29,10 +30,7 @@ const TABLES: TableConfig[] = [
     {
         name: 'prices',
         parquetPattern: 'processed/prices/*.parquet',
-        duckDbOptions: {
-            memory_limit: '16GB',
-            threads: '4'
-        }
+        orderBy: 'code ASC, date ASC',
     },
     {
         name: 'fundamentals',
@@ -41,14 +39,12 @@ const TABLES: TableConfig[] = [
     {
         name: 'edinet',
         parquetPattern: 'processed/edinet/*.parquet',
-        duckDbOptions: {
-            memory_limit: '16GB',
-            threads: '4'
-        }
+        orderBy: 'ticker ASC, submit_date ASC',
     },
     {
         name: 'large_shareholdings',
         parquetPattern: 'processed/large-shareholdings/*.parquet',
+        orderBy: 'ticker ASC, submit_date ASC',
     }
 ];
 
@@ -77,7 +73,11 @@ async function consolidateTable(conn: any, config: TableConfig) {
     // Check if any files exist (naive check for the directory at least)
     // We can just try to run it and catch error if no files match
     try {
-        await conn.run(`CREATE OR REPLACE TABLE ${config.name} AS SELECT * FROM read_parquet('${fullUnknownPath}', union_by_name=true)`);
+        let sql = `CREATE OR REPLACE TABLE ${config.name} AS SELECT * FROM read_parquet('${fullUnknownPath}', union_by_name=true)`;
+        if (config.orderBy) {
+            sql += ` ORDER BY ${config.orderBy}`;
+        }
+        await conn.run(sql);
 
         // Log count
         await logRecordCount(conn, config.name);
