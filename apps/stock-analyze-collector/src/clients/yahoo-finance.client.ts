@@ -25,6 +25,7 @@ export class YahooFinanceClient {
       // or just return quotes which contains open, high, low, close, adjclose, volume, date
       return result.quotes.map((q: any) => ({
         date: q.date,
+        dateString: q.date.toISOString().split('T')[0],
         open: q.open,
         high: q.high,
         low: q.low,

@@ -55,7 +55,7 @@ pnpm run run:fetch-stock-prices [options]
 - `--force`: 既存データをスキップせず強制取得するか。
 
 ### 処理概要
-- `data/processed/prices/code={code}/{year}-{month}.parquet` に保存されます。
+- `data/processed/prices/{code}.parquet` に保存されます (銘柄ごとの単一ファイル)。
 
 ---
 
@@ -115,6 +115,7 @@ pnpm run run:consolidate-data
 | :--- | :--- | :--- |
 | `code` | `VARCHAR` | 銘柄コード。 |
 | `datef` | `DATE` | 日付。|
+| `dateString` | `VARCHAR` | 日付文字列 (ISO 8601 YYYY-MM-DD)。 |
 | `open` | `DOUBLE` | 始値。 |
 | `high` | `DOUBLE` | 高値。 |
 | `low` | `DOUBLE` | 安値。 |

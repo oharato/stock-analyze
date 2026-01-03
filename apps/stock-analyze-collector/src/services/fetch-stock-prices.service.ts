@@ -67,33 +67,15 @@ export class FetchStockPricesService {
     }
 
     private async processAutoMode(ticker: string, code: string): Promise<void> {
-        const dirExists = await this.priceRepository.checkStockPriceDirectoryExists(code);
-
-        if (dirExists) {
-            await this.processDifferentialUpdate(ticker, code);
-        } else {
-            await this.processInitialFetch(ticker, code);
-        }
+        // Always fetch all data to ensure historical Splits/Dividends are updated
+        await this.fetchAllData(ticker, code);
     }
 
-    private async processDifferentialUpdate(ticker: string, code: string): Promise<void> {
-        this.logger.info(`  -> Auto mode: Directory exists. Updating current month data...`);
-        const now = new Date();
-        const period1 = new Date(now.getFullYear(), now.getMonth(), 1);
-
-        const monthlyData = await this.yahooFinanceClient.getHistoricalData(ticker, { period1, period2: now, interval: '1d' });
-
-        if (monthlyData.length > 0) {
-            await this.saveHistoricalData(monthlyData, code);
-        } else {
-            this.logger.info(`  -> No new data for the current month.`);
-        }
-    }
-
-    private async processInitialFetch(ticker: string, code: string): Promise<void> {
-        this.logger.info(`  -> Auto mode: First time fetching. Getting all historical data...`);
-        const quote = await this.yahooFinanceClient.getQuote(ticker);
-        const startDate = quote?.firstTradeDateMilliseconds ? new Date(quote.firstTradeDateMilliseconds) : new Date('1980-01-01');
+    private async fetchAllData(ticker: string, code: string): Promise<void> {
+        this.logger.info(`  -> Auto mode: Fetching all historical data...`);
+        // const quote = await this.yahooFinanceClient.getQuote(ticker);
+        // const startDate = quote?.firstTradeDateMilliseconds ? new Date(quote.firstTradeDateMilliseconds) : new Date('1980-01-01');
+        const startDate = new Date('1950-01-01');
 
         const allData = await this.yahooFinanceClient.getHistoricalData(ticker, { period1: startDate, period2: new Date(), interval: '1d' });
 
@@ -101,18 +83,8 @@ export class FetchStockPricesService {
     }
 
     private async saveHistoricalData(data: any[], code: string): Promise<void> {
-        const groupedByMonth: { [key: string]: Price[] } = {};
-        for (const row of data) {
-            const year = row.date.getFullYear();
-            const month = row.date.getMonth() + 1;
-            const key = `${year}-${String(month).padStart(2, '0')}`;
-            if (!groupedByMonth[key]) groupedByMonth[key] = [];
-            groupedByMonth[key].push({ ...row, code });
-        }
-
-        for (const monthKey in groupedByMonth) {
-            const [yearStr, monthStr] = monthKey.split('-');
-            await this.priceRepository.writeMonthParquetFile(code, parseInt(yearStr), parseInt(monthStr), groupedByMonth[monthKey]);
-        }
+        // Add code to each row just in case, though usually data object already has it or it's added here
+        const dataWithCode = data.map(row => ({ ...row, code }));
+        await this.priceRepository.writeParquetFile(code, dataWithCode);
     }
 }

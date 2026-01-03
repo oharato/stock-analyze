@@ -138,10 +138,23 @@ export class EdinetCommonService {
             throw new Error('Downloader not initialized');
         }
 
-        this.logger.info(`XBRLをAPIから取得中: ${docID}`);
-        const fetchedXbrl = await this.downloader.fetchXbrl(docID);
+        let fetchedXbrl: string | undefined | null = null;
+        const maxRetries = 3;
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                this.logger.info(`XBRLをAPIから取得中: ${docID} (Attempt ${attempt}/${maxRetries})`);
+                fetchedXbrl = await this.downloader.fetchXbrl(docID);
+                if (fetchedXbrl) break;
+
+                this.logger.warn(`XBRL取得失敗 (Attempt ${attempt}). Retrying in 3s...`);
+            } catch (error: any) {
+                this.logger.warn(`XBRL取得エラー (Attempt ${attempt}): ${error.message}. Retrying in 3s...`);
+            }
+            await new Promise(resolve => setTimeout(resolve, 3000));
+        }
+
         if (!fetchedXbrl) {
-            this.logger.error(`XBRLテキストの取得に失敗しました DocID: ${docID}`);
+            this.logger.error(`XBRLテキストの取得に失敗しました (After ${maxRetries} attempts) DocID: ${docID}`);
             return null;
         }
 

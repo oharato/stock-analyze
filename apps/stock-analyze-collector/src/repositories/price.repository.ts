@@ -13,6 +13,7 @@ const OUTPUT_BASE_DIR = path.join(__dirname, '..', '..', '..', '..', 'data', 'pr
 
 const schema = new ParquetSchema({
   date: { type: 'INT64', convertedType: 'TIMESTAMP_MILLIS' } as any,
+  dateString: { type: 'UTF8', optional: true },
   code: { type: 'UTF8' },
   open: { type: 'DOUBLE' },
   high: { type: 'DOUBLE' },
@@ -23,13 +24,12 @@ const schema = new ParquetSchema({
 });
 
 export class PriceRepository {
-  constructor(private readonly logger: LoggerService) {}
+  constructor(private readonly logger: LoggerService) { }
 
-  public async writeMonthParquetFile(code: string, year: number, month: number, data: Price[]): Promise<void> {
-    const outputDir = path.join(OUTPUT_BASE_DIR, `code=${code}`);
-    const outputPath = path.join(outputDir, `${year}-${String(month).padStart(2, '0')}.parquet`);
-
-    await fs.mkdir(outputDir, { recursive: true });
+  public async writeParquetFile(code: string, data: Price[]): Promise<void> {
+    const outputPath = path.join(OUTPUT_BASE_DIR, `${code}.parquet`);
+    // Ensure OUTPUT_BASE_DIR exists
+    await fs.mkdir(OUTPUT_BASE_DIR, { recursive: true });
 
     const writer = await ParquetWriter.openFile(schema, outputPath);
     for (const row of data) {
@@ -37,6 +37,7 @@ export class PriceRepository {
 
       const rowData: any = {
         date: row.date.getTime(),
+        dateString: row.dateString,
         code: row.code,
         open: row.open,
         high: row.high,
@@ -55,16 +56,5 @@ export class PriceRepository {
     this.logger.info(`Successfully wrote/overwrote ${outputPath}`);
   }
 
-  public async checkStockPriceDirectoryExists(code: string): Promise<boolean> {
-    const outputDir = path.join(OUTPUT_BASE_DIR, `code=${code}`);
-    try {
-      await fs.access(outputDir);
-      return true;
-    } catch (error: any) {
-      if (error.code === 'ENOENT') {
-        return false;
-      }
-      throw error;
-    }
-  }
+
 }
