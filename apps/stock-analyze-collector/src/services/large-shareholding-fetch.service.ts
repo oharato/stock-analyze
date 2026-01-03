@@ -70,7 +70,11 @@ export class LargeShareholdingFetchService {
             }
 
             // Parquetファイルが存在するか確認
-            const parquetPath = path.join(this.dataDir, `${dateStr}.parquet`);
+            const outputDir = path.resolve(this.dataDir, '../../processed/large-shareholdings');
+            if (!fs.existsSync(outputDir)) {
+                fs.mkdirSync(outputDir, { recursive: true });
+            }
+            const parquetPath = path.join(outputDir, `${dateStr}.parquet`);
             if (fs.existsSync(parquetPath)) {
                 this.logger.info(`日付 ${dateStr} のParquetファイルは既に存在します。スキップします。`);
                 return;

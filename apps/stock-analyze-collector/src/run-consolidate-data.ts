@@ -73,7 +73,7 @@ async function consolidateEdinet(conn: any) {
     await conn.run("SET threads=4");
     await conn.run("SET preserve_insertion_order=false");
 
-    const edinetBaseDir = path.join(DATA_DIR, 'raw/edinet/monthly');
+    const edinetBaseDir = path.join(DATA_DIR, 'processed/edinet');
     if (!fs.existsSync(edinetBaseDir)) {
         console.log('Edinet directory not found, skipping.');
         return;
@@ -109,7 +109,7 @@ async function consolidateEdinet(conn: any) {
 
 async function consolidateLargeShareholdings(conn: any) {
     console.log('Consolidating large_shareholdings...');
-    await conn.run(`CREATE OR REPLACE TABLE large_shareholdings AS SELECT * FROM read_parquet('${DATA_DIR}/raw/large-shareholdings/**/*.parquet', union_by_name=true)`);
+    await conn.run(`CREATE OR REPLACE TABLE large_shareholdings AS SELECT * FROM read_parquet('${DATA_DIR}/processed/large-shareholdings/**/*.parquet', union_by_name=true)`);
 }
 
 async function main() {

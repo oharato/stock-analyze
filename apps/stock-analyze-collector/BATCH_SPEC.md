@@ -28,14 +28,14 @@ pnpm run run:fetch-edinet --ticker=<TICKER> --years=<YEARS>
     - パラメータ: `pooling: 'mean'`, `normalize: true`
     - **GPU高速化**: 環境変数 `USE_GPU=true` を設定することで GPU モードが有効になります（要環境設定）。
 5.  **保存 (月次バッチ)**:
-    - 取得したドキュメントは月ごとにまとめられ、`data/raw/edinet/monthly/{YYYY-MM}.parquet` に保存されます。
+    - 取得したドキュメントは月ごとにまとめられ、`data/processed/edinet/{YYYY-MM}.parquet` に保存されます。
     - 既存の月次ファイルがある場合、**過去月は再処理をスキップ**し、当月分のみデータをマージします。
 
 ### メタデータSeeding (最適化済み)
 - 実行時に過去数年分のメタデータを取得しますが、ローカルDB (`edinet.db`) にデータが存在する場合、**最終取得日の続きから** Seeding を開始・再開します。これにより起動時間を大幅に短縮しています。
 
 ### 出力ファイル形式 (Parquet)
-ファイルパス: `data/raw/edinet/monthly/{YYYY-MM}.parquet`
+ファイルパス: `data/processed/edinet/{YYYY-MM}.parquet`
 (Parquetファイル内スキーマは `apps/stock-analyze-collector/src/utils/schema-definitions.ts` 参照)
 
 ---

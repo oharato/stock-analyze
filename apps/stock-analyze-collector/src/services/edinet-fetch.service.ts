@@ -191,7 +191,7 @@ export class EdinetFetchService {
         for (const monthKey of monthKeys) {
             const docsInMonth = docsByMonth[monthKey];
             const isCurrentMonth = monthKey === currentMonthKey;
-            const outputDir = path.join(this.dataDir, 'monthly'); // data/raw/edinet/monthly
+            const outputDir = path.resolve(this.dataDir, '../../processed/edinet'); // data/processed/edinet
             if (!fs.existsSync(outputDir)) {
                 fs.mkdirSync(outputDir, { recursive: true });
             }
