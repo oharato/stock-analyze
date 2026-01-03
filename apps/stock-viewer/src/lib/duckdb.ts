@@ -44,6 +44,9 @@ export class DuckDBManager {
     }
 
     private getDatabasePath(): string {
+        if (process.env.NODE_ENV === 'test') {
+            return ':memory:';
+        }
         const localPath = this.config.localPath || path.resolve(process.cwd(), '../../data/stock.duckdb');
         if (fs.existsSync(localPath)) {
             return localPath;

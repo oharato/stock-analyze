@@ -137,7 +137,7 @@ export const Api = {
     }> {
         const [companyRes, edinet, fundamentals, largeShareholdings] = await Promise.all([
             this.executeQuery<Company>(`SELECT * FROM companies WHERE code = '${code}'`),
-            this.executeQuery<EdinetData>(`SELECT * FROM edinet WHERE ticker = '${code}' ORDER BY date DESC`),
+            this.executeQuery<EdinetData>(`SELECT * FROM edinet WHERE ticker = '${code}' ORDER BY submit_date DESC`),
             this.executeQuery<FundamentalData>(`SELECT * FROM fundamentals WHERE code = '${code}' ORDER BY year DESC`),
             this.executeQuery<LargeShareholdingData>(`SELECT * FROM large_shareholdings WHERE ticker = '${code}' ORDER BY submit_date DESC`),
         ]);
@@ -156,7 +156,7 @@ export const Api = {
     async fetchWeeklyPriceData(code: string): Promise<PriceData[]> {
         const sql = `
             SELECT 
-                date_trunc('week', datef) as date,
+                date_trunc('week', epoch_ms(date)) as date,
                 FIRST(open) as open,
                 MAX(high) as high,
                 MIN(low) as low,
@@ -177,7 +177,7 @@ export const Api = {
     async fetchMonthlyPriceData(code: string): Promise<PriceData[]> {
         const sql = `
             SELECT 
-                date_trunc('month', datef) as date,
+                date_trunc('month', epoch_ms(date)) as date,
                 FIRST(open) as open,
                 MAX(high) as high,
                 MIN(low) as low,

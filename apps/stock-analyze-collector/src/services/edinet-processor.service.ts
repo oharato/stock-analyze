@@ -149,7 +149,7 @@ export class EdinetProcessorService {
         const doe = netAssets > 0 ? (dividendTotal / netAssets) * 100 : undefined;
 
         return {
-            doc_id: commonMetadata.docID,
+            doc_id: docId,
             filer_name: commonMetadata.filerName,
             edinet_code: commonMetadata.edinetCode,
             doc_description: commonMetadata.docDescription,

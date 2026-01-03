@@ -163,16 +163,16 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                <template x-for="doc in details.edinet" :key="doc.docId">
+                                <template x-for="doc in details.edinet" :key="doc.doc_id || doc.submit_date">
                                     <tr>
-                                        <td x-text="doc.date"></td>
+                                        <td x-text="doc.submit_date"></td>
                                         <td x-text="Utils.formatValue(doc.net_sales)"></td>
                                         <td x-text="Utils.formatValue(doc.operating_income)"></td>
                                         <td x-text="Utils.formatValue(doc.net_income)"></td>
                                         <td x-text="doc.roa ? doc.roa.toFixed(2) + '%' : '-'"></td>
                                         <td x-text="doc.ocf_margin ? doc.ocf_margin.toFixed(2) + '%' : '-'"></td>
                                         <td x-text="doc.doe ? doc.doe.toFixed(2) + '%' : '-'"></td>
-                                        <td x-text="doc.docId"></td>
+                                        <td x-text="doc.doc_id"></td>
                                     </tr>
                                 </template>
                             </tbody>
