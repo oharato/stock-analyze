@@ -32,7 +32,6 @@ export class EdinetFetchService {
         });
 
         // Initialize Vectorization Model
-        // Initialize Vectorization Model
         if (process.env.USE_GPU === 'true') {
             this.logger.info('Initializing vectorization model (GPU enabled)...');
             const { pipeline } = await import('@xenova/transformers');
@@ -92,52 +91,26 @@ export class EdinetFetchService {
             const endStr = formatDate(endDateObj);
 
             // Fetch specific document types (Annual, Semi-Annual, Quarterly)
-            // Note: EdinetDocumentType values are single codes (120, 140, 160)
             const targetTypes = [
                 EdinetDocumentType.AnnualCards,
                 EdinetDocumentType.SemiAnnualReport,
                 EdinetDocumentType.QuarterlyReport
-            ].map(String); // Ensure strings for comparison
+            ].map(String);
 
-            const docs = await repo.findDocuments({}); // Fetch all for now as safe default
+            const docs = await repo.findDocuments({});
 
-            // Filter in Memory
             const targetDocs = docs.filter((d: any) => {
-                const date = d.submitDate || d.date; // normalize
+                const date = d.submitDate || d.date;
                 if (!date) return false;
                 if (date < startStr || date > endStr) return false;
-
-                // Skip if no secCode (e.g. Investment Trusts, Funds without ticker)
                 if (!d.secCode) return false;
-
-                // Check if it matches any of the target types
                 // @ts-ignore
                 return targetTypes.includes(String(d.docTypeCode));
             });
 
             this.logger.info(`Found ${targetDocs.length} potential documents. Processing...`);
 
-            let processedCount = 0;
-            const total = targetDocs.length;
-
-            for (let i = 0; i < total; i++) {
-                const doc = targetDocs[i];
-                // Normalizing date property access
-                // @ts-ignore
-                const docDate = doc.submitDate || doc.date;
-                const ticker = doc.secCode ? doc.secCode.slice(0, 4) : 'UNKNOWN'; // secCode is usually 5 digit
-
-                try {
-                    const success = await this.processDocument(doc, docDate, ticker);
-                    if (success) processedCount++;
-                } catch (e: any) {
-                    this.logger.warn(`Failed to process ${doc.docID}: ${e.message}`);
-                }
-
-                if ((i + 1) % 10 === 0) {
-                    this.logger.info(`Progress: ${i + 1}/${total} (Processed: ${processedCount})`);
-                }
-            }
+            await this.processDocsByMonth(targetDocs);
 
         } finally {
             repo.close();
@@ -187,13 +160,9 @@ export class EdinetFetchService {
         let processedCount = 0;
 
         try {
-            // Use local DB with indexes instead of API call for better performance
             const repo = new EdinetRepository(this.edinetDbPath);
-
-            // Query local DB (uses idx_sec_doc_type_date index)
             const allDocs = await repo.findDocuments({});
 
-            // Filter by secCode, date range, and document type
             const targetTypes = [
                 EdinetDocumentType.AnnualCards,
                 EdinetDocumentType.SemiAnnualReport,
@@ -202,11 +171,9 @@ export class EdinetFetchService {
 
             const targetDocs = allDocs.filter((d: any) => {
                 if (d.secCode !== targetSecCode) return false;
-
                 const date = d.submitDate || d.date;
                 if (!date) return false;
                 if (date < startStr || date > endStr) return false;
-
                 return targetTypes.includes(String(d.docTypeCode));
             });
 
@@ -217,19 +184,9 @@ export class EdinetFetchService {
 
             this.logger.info(`Found ${targetDocs.length} document(s). Processing...`);
 
-            for (const doc of targetDocs) {
-                // @ts-ignore - EdinetMetadata uses submitDate
-                const docDate = doc.submitDate || doc.date;
-                if (!docDate) {
-                    this.logger.warn(`Skipping document (DocID: ${doc.docID}) due to missing date.`);
-                    continue;
-                }
+            await this.processDocsByMonth(targetDocs);
+            processedCount = targetDocs.length;
 
-                const success = await this.processDocument(doc, docDate, ticker);
-                if (success) {
-                    processedCount++;
-                }
-            }
         } catch (e: any) {
             this.logger.error(`Error searching period ${startStr}~${endStr}: ${e.message}`);
         }
@@ -256,29 +213,129 @@ export class EdinetFetchService {
     }
 
     /**
-     * Download, Parse, Vectorize and Save a single document
+     * Group docs by month and process in batches
      */
-    private async processDocument(doc: any, docDate: string, ticker: string): Promise<boolean> {
-        this.logger.info(`Processing document: ${doc.docDescription} (DocID: ${doc.docID}, Date: ${docDate})`);
+    private async processDocsByMonth(docs: any[]): Promise<void> {
+        if (docs.length === 0) return;
 
-        // Organize by ticker prefix (first character, handles both numeric and alphanumeric codes)
-        // Examples: 1234 -> 1/, 130A -> 1/, 9999 -> 9/
-        const tickerPrefix = ticker.charAt(0);
-        const subDir = path.join(this.dataDir, tickerPrefix);
+        this.logger.info(`Found ${docs.length} documents. Sorting and grouping by month...`);
 
-        // Ensure subdirectory exists
-        if (!fs.existsSync(subDir)) {
-            fs.mkdirSync(subDir, { recursive: true });
+        // Sort by date (oldest first)
+        docs.sort((a: any, b: any) => {
+            const da = a.submitDate || a.date;
+            const db = b.submitDate || b.date;
+            return da.localeCompare(db);
+        });
+
+        // Group by Month (YYYY-MM)
+        const docsByMonth: { [key: string]: any[] } = {};
+        for (const doc of docs) {
+            const date = doc.submitDate || doc.date;
+            if (!date) continue;
+            const monthKey = date.slice(0, 7); // YYYY-MM
+            if (!docsByMonth[monthKey]) docsByMonth[monthKey] = [];
+            docsByMonth[monthKey].push(doc);
         }
 
-        const filename = `${ticker}-${docDate}-${doc.docID}.parquet`;
-        const filePath = path.join(subDir, filename);
+        const monthKeys = Object.keys(docsByMonth).sort();
+        this.logger.info(`Processing ${monthKeys.length} monthly batches: ${monthKeys.join(', ')}`);
 
-        if (fs.existsSync(filePath)) {
-            this.logger.info(`File already exists: ${filePath}. Skipping.`);
-            return true; // Count as found/processed existing
+        const currentMonthKey = new Date().toISOString().slice(0, 7);
+
+        for (const monthKey of monthKeys) {
+            const docsInMonth = docsByMonth[monthKey];
+            const isCurrentMonth = monthKey === currentMonthKey;
+            const outputDir = path.join(this.dataDir, 'monthly'); // data/raw/edinet/monthly
+            if (!fs.existsSync(outputDir)) {
+                fs.mkdirSync(outputDir, { recursive: true });
+            }
+            const outputPath = path.join(outputDir, `${monthKey}.parquet`);
+
+            // SKIP Logic:
+            // If past month AND file exists -> SKIP completely
+            // If current month OR file missing -> PROCESS (Merge with existing if current month)
+            if (!isCurrentMonth && fs.existsSync(outputPath)) {
+                this.logger.info(`[batch] Skipping ${monthKey} (Past month, file exists: ${docsInMonth.length} docs in DB)`);
+                continue;
+            }
+
+            this.logger.info(`[batch] Processing ${monthKey} (Docs: ${docsInMonth.length}, IsCurrent: ${isCurrentMonth})`);
+
+            // Load existing docIDs if file exists
+            const existingDocIds = new Set<string>();
+            let existingRows: any[] = [];
+
+            if (fs.existsSync(outputPath)) {
+                this.logger.info(`  -> Loading existing parquet file to merge...`);
+                try {
+                    const parquetjs = await import('parquetjs');
+                    const reader = await parquetjs.default.ParquetReader.openFile(outputPath);
+                    const cursor = reader.getCursor();
+                    let record: any = null;
+                    while (record = await cursor.next()) {
+                        if (record.doc_id) {
+                            existingDocIds.add(record.doc_id);
+                            existingRows.push(record);
+                        }
+                    }
+                    await reader.close();
+                    this.logger.info(`  -> Loaded ${existingRows.length} existing records.`);
+                } catch (e: any) {
+                    this.logger.warn(`  -> Failed to read existing parquet (will overwrite): ${e.message}`);
+                    existingRows = []; // corrupted? overwrite
+                }
+            }
+
+            // Filter docs that need processing
+            const docsToProcess = docsInMonth.filter(d => !existingDocIds.has(d.docID));
+
+            if (docsToProcess.length === 0) {
+                this.logger.info(`  -> No new documents to process for ${monthKey}.`);
+                continue;
+            }
+
+            this.logger.info(`  -> Processing ${docsToProcess.length} new documents...`);
+
+            const newRows: any[] = [];
+            let batchProcessed = 0;
+
+            for (let i = 0; i < docsToProcess.length; i++) {
+                const doc = docsToProcess[i];
+                // @ts-ignore
+                const docDate = doc.submitDate || doc.date;
+                const ticker = doc.secCode ? doc.secCode.slice(0, 4) : 'UNKNOWN';
+
+                try {
+                    const rowData = await this.processDocumentData(doc, docDate, ticker);
+                    if (rowData) {
+                        newRows.push(rowData);
+                        batchProcessed++;
+                    }
+                } catch (e: any) {
+                    this.logger.warn(`Failed to process ${doc.docID}: ${e.message}`);
+                }
+
+                if ((i + 1) % 10 === 0) {
+                    process.stdout.write('.');
+                }
+            }
+            process.stdout.write('\n');
+
+            if (newRows.length > 0) {
+                // Merge and Write
+                const finalRows = [...existingRows, ...newRows];
+                finalRows.sort((a, b) => (a.submit_date || '').localeCompare(b.submit_date || ''));
+
+                this.logger.info(`  -> Writing ${finalRows.length} records to ${outputPath}...`);
+                await this.writeParquetFile(outputPath, finalRows);
+            }
         }
+    }
 
+    /**
+     * Download, Parse, Vectorize and return data object (NO File Write)
+     */
+    private async processDocumentData(doc: any, docDate: string, ticker: string): Promise<any | null> {
         // Check for cached XBRL
         const xbrlCachePath = path.join(this.dataDir, '../xbrl-cache', `${doc.docID}.xml`);
         let xbrlText: string;
@@ -291,7 +348,7 @@ export class EdinetFetchService {
             const fetchedXbrl = await this.downloader!.fetchXbrl(doc.docID);
             if (!fetchedXbrl) {
                 this.logger.error(`Failed to fetch XBRL text for DocID: ${doc.docID}`);
-                return false;
+                return null;
             }
             xbrlText = fetchedXbrl;
 
@@ -326,20 +383,24 @@ export class EdinetFetchService {
             major_shareholders: JSON.stringify(saveData.major_shareholders)
         };
 
+        return parquetRecord;
+    }
+
+    private async writeParquetFile(filePath: string, rows: any[]): Promise<void> {
+        if (rows.length === 0) return;
+
         try {
             const parquetjs = await import('parquetjs');
             const { ParquetWriter } = parquetjs.default;
             const { EDINET_SCHEMA } = await import('../utils/schema-definitions.js');
 
             const writer = await ParquetWriter.openFile(EDINET_SCHEMA, filePath);
-            await writer.appendRow(parquetRecord as any);
+            for (const row of rows) {
+                await writer.appendRow(row);
+            }
             await writer.close();
-
-            this.logger.info(`Saved data with vectors to ${filePath}`);
-            return true;
         } catch (e: any) {
-            this.logger.error(`Failed to write Parquet for ${doc.docID}: ${e.message}`);
-            return false;
+            throw new Error(`Parquet write failed: ${e.message}`);
         }
     }
 

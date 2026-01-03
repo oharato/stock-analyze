@@ -173,9 +173,9 @@ export class LargeShareholdingFetchService {
 
         // Extract Ticker
         const ticker = this.extractIssuerTicker(xbrlText);
-        if (!ticker) {
-            this.logger.warn(`Could not extract issuer ticker for ${doc.docID}. Using 'UNKNOWN'.`);
-        }
+        // if (!ticker) {
+        //     this.logger.warn(`Could not extract issuer ticker for ${doc.docID}. Using 'UNKNOWN'.`);
+        // }
         const safeTicker = ticker || 'UNKNOWN';
 
         // Extract Extra Info (Purpose, Share Counts, etc.)

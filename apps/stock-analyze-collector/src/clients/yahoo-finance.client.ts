@@ -1,5 +1,5 @@
 import YahooFinance from "yahoo-finance2";
-import type { HistoricalOptions } from "yahoo-finance2/modules/historical";
+import type { ChartOptions } from "yahoo-finance2/modules/chart";
 import type { Quote } from "yahoo-finance2/modules/quote";
 import { RateLimiter, RateLimiterConfig } from '../utils/rate-limiter.js';
 import { LoggerService } from '../services/logger.service.js';
@@ -18,8 +18,22 @@ export class YahooFinanceClient {
     this.rateLimiter = new RateLimiter(config, logger);
   }
 
-  public async getHistoricalData(ticker: string, options: HistoricalOptions): Promise<any[]> {
-    return this.withRetry(() => this.client.historical(ticker, options));
+  public async getHistoricalData(ticker: string, options: ChartOptions): Promise<any[]> {
+    const result = await this.withRetry(() => this.client.chart(ticker, options)) as any;
+    if (result && result.quotes) {
+      // Map ChartResultArray to format similar to historical result if needed, 
+      // or just return quotes which contains open, high, low, close, adjclose, volume, date
+      return result.quotes.map((q: any) => ({
+        date: q.date,
+        open: q.open,
+        high: q.high,
+        low: q.low,
+        close: q.close,
+        adjClose: q.adjclose,
+        volume: q.volume
+      }));
+    }
+    return [];
   }
 
   public async getQuote(ticker: string): Promise<Quote | undefined> {

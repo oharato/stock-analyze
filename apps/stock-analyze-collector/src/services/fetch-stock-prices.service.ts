@@ -56,7 +56,7 @@ export class FetchStockPricesService {
         const period1 = args.startDate!;
         const period2 = args.endDate || new Date();
 
-        const historicalData = await this.yahooFinanceClient.getHistoricalData(ticker, { period1, period2, interval: '1d' as const });
+        const historicalData = await this.yahooFinanceClient.getHistoricalData(ticker, { period1, period2, interval: '1d' });
 
         if (historicalData.length === 0) {
             this.logger.info('  -> No data found for the specified period.');
@@ -81,7 +81,7 @@ export class FetchStockPricesService {
         const now = new Date();
         const period1 = new Date(now.getFullYear(), now.getMonth(), 1);
 
-        const monthlyData = await this.yahooFinanceClient.getHistoricalData(ticker, { period1, period2: now, interval: '1d' as const });
+        const monthlyData = await this.yahooFinanceClient.getHistoricalData(ticker, { period1, period2: now, interval: '1d' });
 
         if (monthlyData.length > 0) {
             await this.saveHistoricalData(monthlyData, code);
@@ -95,7 +95,7 @@ export class FetchStockPricesService {
         const quote = await this.yahooFinanceClient.getQuote(ticker);
         const startDate = quote?.firstTradeDateMilliseconds ? new Date(quote.firstTradeDateMilliseconds) : new Date('1980-01-01');
 
-        const allData = await this.yahooFinanceClient.getHistoricalData(ticker, { period1: startDate, period2: new Date(), interval: '1d' as const });
+        const allData = await this.yahooFinanceClient.getHistoricalData(ticker, { period1: startDate, period2: new Date(), interval: '1d' });
 
         await this.saveHistoricalData(allData, code);
     }
