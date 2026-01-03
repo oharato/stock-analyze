@@ -5,6 +5,7 @@ import { LoggerService } from './logger.service.js';
 import { EdinetCommonService } from './edinet-common.service.js';
 import { VectorizationService } from './vectorization.service.js';
 import { EdinetProcessorService } from './edinet-processor.service.js';
+import pLimit from 'p-limit';
 
 export class EdinetFetchService {
     private commonService: EdinetCommonService;
@@ -240,27 +241,30 @@ export class EdinetFetchService {
 
             this.logger.info(`  -> ${docsToProcess.length} 件の新規ドキュメントを処理中...`);
 
-            const newRows: any[] = [];
+            this.logger.info(`  -> ${docsToProcess.length} 件の新規ドキュメントを処理中...`);
 
-            for (let i = 0; i < docsToProcess.length; i++) {
-                const doc = docsToProcess[i];
+            const limit = pLimit(10); // Concurrency limit
+            const promises = docsToProcess.map((doc, index) => limit(async () => {
                 // @ts-ignore
                 const docDate = doc.submitDate || doc.date;
                 const ticker = doc.secCode ? doc.secCode.slice(0, 4) : 'UNKNOWN';
+                let rowData = null;
 
                 try {
-                    const rowData = await this.processorService.process(doc, docDate, ticker);
-                    if (rowData) {
-                        newRows.push(rowData);
-                    }
+                    rowData = await this.processorService.process(doc, docDate, ticker);
                 } catch (e: any) {
                     this.logger.warn(`${doc.docID} の処理に失敗しました: ${e.message}`);
                 }
 
-                if ((i + 1) % 10 === 0) {
+                if ((index + 1) % 10 === 0) {
                     process.stdout.write('.');
                 }
-            }
+
+                return rowData;
+            }));
+
+            const results = await Promise.all(promises);
+            const newRows = results.filter((row): row is any => row !== null);
             process.stdout.write('\n');
 
             if (newRows.length > 0) {
