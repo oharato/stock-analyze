@@ -90,6 +90,18 @@ async function consolidateLargeShareholdings(conn: any) {
     await conn.run(`CREATE OR REPLACE TABLE large_shareholdings AS SELECT * FROM read_parquet('${DATA_DIR}/processed/large-shareholdings/**/*.parquet', union_by_name=true)`);
 }
 
+async function logRecordCount(conn: any, tableName: string) {
+    try {
+        const result = await conn.run(`SELECT count(*) as count FROM ${tableName}`);
+        const rows = await result.getRows();
+        // rows[0][0] might be a BigInt or number depending on the driver version
+        const count = rows[0][0];
+        console.log(`[Table: ${tableName}] Record count: ${count.toString()}`);
+    } catch (e: any) {
+        console.warn(`Failed to get record count for ${tableName}:`, e.message);
+    }
+}
+
 async function main() {
     console.log('--- Starting Data Consolidation (TypeScript) ---');
     console.log(`Database: ${DB_PATH}`);
@@ -107,26 +119,31 @@ async function main() {
         if (!targetTable || targetTable === 'companies') {
             console.time('consolidateCompanies');
             await consolidateCompanies(conn);
+            await logRecordCount(conn, 'companies');
             console.timeEnd('consolidateCompanies');
         }
         if (!targetTable || targetTable === 'prices') {
             console.time('consolidatePrices');
             await consolidatePrices(conn);
+            await logRecordCount(conn, 'prices');
             console.timeEnd('consolidatePrices');
         }
         if (!targetTable || targetTable === 'fundamentals') {
             console.time('consolidateFundamentals');
             await consolidateFundamentals(conn);
+            await logRecordCount(conn, 'fundamentals');
             console.timeEnd('consolidateFundamentals');
         }
         if (!targetTable || targetTable === 'edinet') {
             console.time('consolidateEdinet');
             await consolidateEdinet(conn);
+            await logRecordCount(conn, 'edinet');
             console.timeEnd('consolidateEdinet');
         }
         if (!targetTable || targetTable === 'large_shareholdings') {
             console.time('consolidateLargeShareholdings');
             await consolidateLargeShareholdings(conn);
+            await logRecordCount(conn, 'large_shareholdings');
             console.timeEnd('consolidateLargeShareholdings');
         }
 
