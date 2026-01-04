@@ -20,10 +20,6 @@ COPY tsconfig.json ./
 # Copy source code including client and other necessary files
 COPY src ./src
 COPY client ./client
-COPY public ./public
-# Copy tailwind config if exists (it's required for build)
-COPY index.css ./
-
 # 6. Install dependencies and Build
 # Install ALL dependencies (including devDependencies) to run the build
 RUN echo "supportedArchitectures.os=linux" > .npmrc && \
