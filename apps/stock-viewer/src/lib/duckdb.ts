@@ -27,7 +27,7 @@ export class DuckDBManager {
 
         console.log(`[DuckDB] Opening database at: ${dbPath} (readonly: ${!!this.config.readonly})`);
         const duckdbConfig: Record<string, string> = {};
-        if (this.config.readonly) {
+        if (this.config.readonly && dbPath !== ':memory:') {
             duckdbConfig.access_mode = 'READ_ONLY';
         }
         this.instance = await DuckDBInstance.create(dbPath, duckdbConfig);
