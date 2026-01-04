@@ -1,5 +1,5 @@
 # 1. Base Image
-FROM node:24-slim
+FROM node:24-slim AS builder
 
 # 2. Set Working Directory
 WORKDIR /app
@@ -14,28 +14,49 @@ RUN apt-get update && apt-get install -y \
 # 4. Install pnpm
 RUN npm install -g pnpm
 
-# 5. Copy manifests
+# 5. Copy manifests and source
 COPY package.json pnpm-lock.yaml* ./
 COPY tsconfig.json ./
+# Copy source code including client and other necessary files
+COPY src ./src
+COPY client ./client
+COPY public ./public
+# Copy tailwind config if exists (it's required for build)
+COPY index.css ./
 
-# 6. Install dependencies
-# Set pnpm to allow building native dependencies (like sharp)
+# 6. Install dependencies and Build
+# Install ALL dependencies (including devDependencies) to run the build
 RUN echo "supportedArchitectures.os=linux" > .npmrc && \
     echo "supportedArchitectures.cpu=x64,arm64" >> .npmrc && \
-    pnpm install --prod --no-frozen-lockfile
+    pnpm install --frozen-lockfile
 
-# 7. Copy compiled server and client code
-# Note: assumes 'npm run build' was run locally before 'wrangler deploy'
-# or we can build inside, but for speed we copy dist
-COPY dist ./dist
+# Run build
+RUN pnpm run build
 
-# 8. Expose port (Durable Object Containers use 8080 by default internally often, 
-# but let's match hono default or what we set)
+# --- Runner Stage ---
+FROM node:24-slim AS runner
+
+WORKDIR /app
+
+# Install pnpm (needed if we want to use pnpm to run, or we can just use node)
+RUN npm install -g pnpm
+
+# Copy package.json to run scripts if needed, or just for metadata
+COPY package.json pnpm-lock.yaml* ./
+
+# Copy built artifacts from builder
+COPY --from=builder /app/dist ./dist
+# Install only production dependencies
+# We need to copy .npmrc or recreate it to ensure sharp installs correctly
+COPY --from=builder /app/.npmrc ./
+RUN pnpm install --prod --frozen-lockfile
+
+# Expose port
 EXPOSE 3000
 
-# 9. Set environment
+# Set environment
 ENV NODE_ENV=production
 ENV PORT=3000
 
-# 10. Start command
+# Start command
 CMD ["node", "dist/index.js"]
