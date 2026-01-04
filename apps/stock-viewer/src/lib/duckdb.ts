@@ -25,13 +25,30 @@ export class DuckDBManager {
         const dbPath = this.getDatabasePath();
         const isLocal = dbPath !== ':memory:';
 
-        console.log(`[DuckDB] Opening database at: ${dbPath} (readonly: ${!!this.config.readonly})`);
+        console.log(`[DuckDB] Opening database at: '${dbPath}' (config readonly: ${!!this.config.readonly})`);
+
         const duckdbConfig: Record<string, string> = {};
-        if (this.config.readonly && dbPath !== ':memory:') {
+
+        // Explicitly handle ReadOnly logic
+        if (dbPath === ':memory:') {
+            // In-memory DBs must be RW. Explicitly do nothing to access_mode.
+            console.log('[DuckDB] Database is in-memory, ensuring READ_WRITE mode.');
+        } else if (this.config.readonly) {
             duckdbConfig.access_mode = 'READ_ONLY';
+            console.log('[DuckDB] Setting access_mode to READ_ONLY for file-based DB.');
         }
-        this.instance = await DuckDBInstance.create(dbPath, duckdbConfig);
+
+        console.log(`[DuckDB] Final duckdbConfig: ${JSON.stringify(duckdbConfig)}`);
+
+        try {
+            this.instance = await DuckDBInstance.create(dbPath, duckdbConfig);
+        } catch (e: any) {
+            console.error(`[DuckDB] Failed to create instance. Path: '${dbPath}', Config: ${JSON.stringify(duckdbConfig)}, Error:`, e);
+            throw e;
+        }
         this.connection = await this.instance.connect();
+
+        console.log(`[DuckDB] Instance created and connected. isLocal: ${isLocal}, hasR2: ${!!this.config.r2}`);
 
         if (!isLocal && this.config.r2) {
             const success = await this.setupR2();
