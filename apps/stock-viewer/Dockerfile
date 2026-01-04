@@ -24,7 +24,7 @@ COPY client ./client
 # Install ALL dependencies (including devDependencies) to run the build
 RUN echo "supportedArchitectures.os=linux" > .npmrc && \
     echo "supportedArchitectures.cpu=x64,arm64" >> .npmrc && \
-    pnpm install --frozen-lockfile
+    pnpm install --no-frozen-lockfile
 
 # Run build
 RUN pnpm run build
@@ -45,7 +45,7 @@ COPY --from=builder /app/dist ./dist
 # Install only production dependencies
 # We need to copy .npmrc or recreate it to ensure sharp installs correctly
 COPY --from=builder /app/.npmrc ./
-RUN pnpm install --prod --frozen-lockfile
+RUN pnpm install --prod --no-frozen-lockfile
 
 # Expose port
 EXPOSE 3000
