@@ -36,6 +36,18 @@ export class StockChart {
         sma75Data: []
     };
 
+    private handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Control' && this.chart) {
+            this.chart.applyOptions({ handleScale: { mouseWheel: true } });
+        }
+    };
+
+    private handleKeyUp = (e: KeyboardEvent) => {
+        if (e.key === 'Control' && this.chart) {
+            this.chart.applyOptions({ handleScale: { mouseWheel: false } });
+        }
+    };
+
     /**
      * チャートを初期化します。
      */
@@ -61,7 +73,14 @@ export class StockChart {
                 timeVisible: true,
                 secondsVisible: false,
             },
+            handleScale: {
+                mouseWheel: false, // デフォルトで無効化
+            },
         });
+
+        // キーイベントの登録
+        window.addEventListener('keydown', this.handleKeyDown);
+        window.addEventListener('keyup', this.handleKeyUp);
 
         // 凡例マネージャの初期化
         this.legendManager = new LegendManager(container);
@@ -121,6 +140,9 @@ export class StockChart {
      * 破棄処理
      */
     destroy(): void {
+        window.removeEventListener('keydown', this.handleKeyDown);
+        window.removeEventListener('keyup', this.handleKeyUp);
+
         this.resizeObserver?.disconnect();
         this.legendManager?.destroy();
         this.chart?.remove();
