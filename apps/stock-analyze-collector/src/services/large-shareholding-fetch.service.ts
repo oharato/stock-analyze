@@ -39,16 +39,29 @@ export class LargeShareholdingFetchService {
 
         this.logger.info(`大量保有報告書の処理を開始: ${startDate.toISOString().split('T')[0]} から ${endDate.toISOString().split('T')[0]} まで...`);
 
+        // 事前にファイル一覧を取得
+        const outputDir = path.resolve(this.dataDir, '../../processed/large-shareholdings');
+        if (!fs.existsSync(outputDir)) {
+            fs.mkdirSync(outputDir, { recursive: true });
+        }
+        const existingFiles = new Set(fs.readdirSync(outputDir));
+
         // 3. 各日をループ処理
         let currentDate = new Date(startDate);
         while (currentDate <= endDate) {
             const dateStr = currentDate.toISOString().split('T')[0];
-            await this.processDay(dateStr);
+            await this.processDay(dateStr, existingFiles, outputDir);
             currentDate.setDate(currentDate.getDate() + 1);
         }
     }
 
-    private async processDay(dateStr: string): Promise<void> {
+    private async processDay(dateStr: string, existingFiles: Set<string>, outputDir: string): Promise<void> {
+        const parquetFilename = `${dateStr}.parquet`;
+        if (existingFiles.has(parquetFilename)) {
+            this.logger.info(`日付 ${dateStr} のParquetファイルは既に存在します。スキップします。`);
+            return;
+        }
+
         const repo = new EdinetRepository(this.edinetDbPath);
 
         try {
@@ -70,17 +83,6 @@ export class LargeShareholdingFetchService {
                 return;
             }
 
-            // Parquetファイルが存在するか確認
-            const outputDir = path.resolve(this.dataDir, '../../processed/large-shareholdings');
-            if (!fs.existsSync(outputDir)) {
-                fs.mkdirSync(outputDir, { recursive: true });
-            }
-            const parquetPath = path.join(outputDir, `${dateStr}.parquet`);
-            if (fs.existsSync(parquetPath)) {
-                this.logger.info(`日付 ${dateStr} のParquetファイルは既に存在します。スキップします。`);
-                return;
-            }
-
             this.logger.info(`日付 ${dateStr} に ${targetDocs.length} 件のドキュメントを発見。処理を開始します...`);
 
             const records: LargeShareholding[] = [];
@@ -97,6 +99,7 @@ export class LargeShareholdingFetchService {
             }
 
             if (records.length > 0) {
+                const parquetPath = path.join(outputDir, parquetFilename);
                 await this.writeParquet(parquetPath, records);
                 this.logger.info(`${records.length} 件のレコードを ${parquetPath} に保存しました。`);
             }
