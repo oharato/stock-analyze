@@ -10,10 +10,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  fetch-and-upload:
+  prepare:
     runs-on: ubuntu-latest
-    timeout-minutes: 240
-    
     steps:
       - name: Free Disk Space (Ubuntu)
         uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be
@@ -44,6 +42,10 @@ jobs:
       - name: Build Domain
         run: pnpm --filter stock-analyze-domain run build
 
+  fetch-and-upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
       - name: Restore Data Cache
         uses: actions/cache/restore@v4
         with:
