@@ -7,7 +7,7 @@ on:
 
 jobs:
   fetch-and-upload:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     
     steps:
       - name: Checkout repository
@@ -28,11 +28,25 @@ jobs:
       - name: Build Domain
         run: pnpm --filter stock-analyze-domain run build
 
+      - name: Restore Data Cache
+        uses: actions/cache/restore@v4
+        with:
+          path: data
+          key: data-linux-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            data-linux-${{ github.run_id }}-
+            data-linux-
 
       - name: Fetch Stock List
         run: pnpm --filter stock-analyze-collector run run:fetch-stock-list
         env:
           NODE_ENV: production
+
+      - name: Upload Stock List to Databricks
+        run: pnpm --filter stock-analyze-databricks run upload:stock-list
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
 
       - name: Fetch Stock Prices
         run: pnpm --filter stock-analyze-collector run run:fetch-stock-prices
@@ -47,3 +61,10 @@ jobs:
           DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
           # Optional: Override destination path if needed
           # DATABRICKS_DESTINATION_PATH: /Volumes/main/default/prices
+
+      - name: Save Data Cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: data
+          key: data-linux-${{ github.run_id }}-${{ github.run_attempt }}
