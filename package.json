@@ -27,7 +27,8 @@
 	"pnpm": {
 		"onlyBuiltDependencies": [
 			"sharp",
-			"@duckdb/node-api"
+			"@duckdb/node-api",
+			"better-sqlite3"
 		],
 		"overrides": {
 			"sharp": "0.33.5"
