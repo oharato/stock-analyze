@@ -5,9 +5,14 @@ on:
   schedule:
     - cron: '0 20 * * *' # JST 5:00 (UTC 20:00) - Before market opens or strictly for daily updates
 
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
 jobs:
   fetch-and-upload:
     runs-on: ubuntu-slim
+    timeout-minutes: 120
     
     steps:
       - name: Checkout repository
