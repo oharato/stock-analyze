@@ -45,6 +45,7 @@ jobs:
   fetch-and-upload:
     runs-on: ubuntu-latest
     timeout-minutes: 240
+    needs: prepare
     steps:
       - name: Restore Data Cache
         uses: actions/cache/restore@v4
