@@ -1,0 +1,18 @@
+{
+    "name": "stock-analyze-databricks",
+    "version": "1.0.0",
+    "type": "module",
+    "scripts": {
+        "upload:price": "tsx src/upload-price.ts",
+        "upload:stock-list": "tsx src/upload-stock-list.ts",
+        "typecheck": "tsc --noEmit"
+    },
+    "dependencies": {
+        "dotenv": "^16.4.5"
+    },
+    "devDependencies": {
+        "@types/node": "^20.19.28",
+        "tsx": "^4.21.0",
+        "typescript": "^5.9.3"
+    }
+}
