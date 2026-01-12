@@ -3,7 +3,7 @@ name: Fetch and Upload Stock Prices
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 20 * * *' # JST 5:00 (UTC 20:00) - Before market opens or strictly for daily updates
+    - cron: '0 8 * * *'
 
 concurrency:
   group: ${{ github.workflow }}
