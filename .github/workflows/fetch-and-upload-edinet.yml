@@ -1,4 +1,4 @@
-name: Fetch and Upload Stock Prices
+name: Fetch and Upload Edinet
 
 on:
   workflow_dispatch:
