@@ -40,6 +40,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
 
+      - name: Rebuild Native Modules
+        run: pnpm rebuild better-sqlite3
+
       - name: Build Domain
         run: pnpm --filter stock-analyze-domain run build
 
