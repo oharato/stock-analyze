@@ -1,0 +1,47 @@
+name: Fetch and Upload Stock Prices
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 20 * * *' # JST 5:00 (UTC 20:00) - Before market opens or strictly for daily updates
+
+jobs:
+  fetch-and-upload:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Fetch Stock List
+        run: pnpm --filter stock-analyze-collector run run:fetch-stock-list
+        env:
+          NODE_ENV: production
+
+      - name: Fetch Stock Prices
+        run: pnpm --filter stock-analyze-collector run run:fetch-stock-prices
+        env:
+          # Add any necessary environment variables for the collector here
+          NODE_ENV: production
+
+      - name: Upload Prices to Databricks
+        run: pnpm --filter stock-analyze-databricks run upload:price
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+          # Optional: Override destination path if needed
+          # DATABRICKS_DESTINATION_PATH: /Volumes/main/default/prices
