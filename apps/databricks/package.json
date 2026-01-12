@@ -5,6 +5,8 @@
     "scripts": {
         "upload:price": "tsx src/upload-price.ts",
         "upload:stock-list": "tsx src/upload-stock-list.ts",
+        "upload:edinet": "tsx src/upload-edinet.ts",
+        "upload:large-shareholdings": "tsx src/upload-large-shareholdings.ts",
         "typecheck": "tsc --noEmit"
     },
     "dependencies": {

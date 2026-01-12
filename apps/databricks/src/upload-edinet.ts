@@ -4,13 +4,13 @@ import 'dotenv/config';
 import { DatabricksClient } from './services/databricks.client.js';
 
 async function main() {
-    const destinationDirRaw = process.env.DATABRICKS_DESTINATION_PATH || '/Volumes/main/default/prices';
+    const destinationDirRaw = process.env.DATABRICKS_DESTINATION_EDINET_PATH || '/Volumes/main/default/edinet';
 
     // Ensure destination path starts with / and removes trailing slash for consistency
     const destinationBaseDir = (destinationDirRaw.startsWith('/') ? destinationDirRaw : `/${destinationDirRaw}`).replace(/\/+$/, '');
 
     // Target directory
-    const sourceDir = path.resolve('../../data/processed/prices');
+    const sourceDir = path.resolve('../../data/processed/edinet');
     if (!fs.existsSync(sourceDir)) {
         console.error(`Error: Source directory not found at ${sourceDir}`);
         process.exit(1);
@@ -22,8 +22,6 @@ async function main() {
     console.log(`Found ${files.length} parquet files in ${sourceDir}`);
     console.log(`Destination Base Directory: ${destinationBaseDir}`);
 
-    // Ensure volume exists for the destination directory (assuming all files go to the same volume)
-    // We pass one sample file path to ensure logic triggers for the volume path
     await client.ensureVolumeFromPath(`${destinationBaseDir}/placeholder`);
 
     for (const [index, file] of files.entries()) {
@@ -36,7 +34,6 @@ async function main() {
             await client.uploadFile(sourceFile, destinationPath);
         } catch (error) {
             console.error(`Failed to upload ${file}:`, error);
-            // Continue to verify other files or stop? Let's log and continue for now.
         }
     }
 
