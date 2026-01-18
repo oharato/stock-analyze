@@ -2,8 +2,8 @@ name: Fetch and Upload Edinet
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '0 12 * * *'
+  # schedule:
+  #   - cron: '0 12 * * *'
 
 concurrency:
   group: ${{ github.workflow }}
