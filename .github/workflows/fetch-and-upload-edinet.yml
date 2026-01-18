@@ -12,7 +12,7 @@ concurrency:
 jobs:
   fetch-and-upload:
     runs-on: ubuntu-latest
-    timeout-minutes: 3000
+    # timeout-minutes: 3000
     steps:
       - name: Free Disk Space (Ubuntu)
         uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be
@@ -53,7 +53,7 @@ jobs:
             data-linux-
 
       - name: Fetch EDINET
-        run: pnpm --filter stock-analyze-collector run run:fetch-edinet
+        run: pnpm --filter stock-analyze-collector run run:fetch-edinet --years 1
         env:
           EDINET_API_KEY: ${{ secrets.EDINET_API_KEY }}
 
