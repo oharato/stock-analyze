@@ -53,7 +53,7 @@ jobs:
             data-linux-
 
       - name: Fetch EDINET
-        run: pnpm --filter stock-analyze-collector run run:fetch-edinet --years 2
+        run: pnpm --filter stock-analyze-collector run run:fetch-edinet --years 3
         env:
           EDINET_API_KEY: ${{ secrets.EDINET_API_KEY }}
 
