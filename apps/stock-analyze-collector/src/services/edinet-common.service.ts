@@ -41,22 +41,31 @@ export class EdinetCommonService {
             targetStartDate.setFullYear(targetStartDate.getFullYear() - years);
         }
 
-        // 最適化: 最終Seeding日時を確認
+        // 最適化: Seeding済み範囲を確認
         const lastSeeded = this.getLastSeededDate();
+        const firstSeeded = this.getFirstSeededDate();
 
-        if (lastSeeded) {
-            let effectiveStart = lastSeeded;
-            if (targetStartDate && targetStartDate > effectiveStart) {
-                effectiveStart = targetStartDate;
-                this.logger.info(`ターゲット日付 (${targetStartDate.toISOString().split('T')[0]}) は最終Seeding日 (${lastSeeded.toISOString().split('T')[0]}) より新しいです。ターゲット日付から開始します。`);
-            } else {
-                this.logger.info(`既存のメタデータを ${lastSeeded.toISOString().split('T')[0]} まで確認しました。ここからSeedingを再開します。`);
+        if (lastSeeded && firstSeeded) {
+            // ケース1: 指定期間が既存データより古い場合 (Backfill必要)
+            if (targetStartDate && targetStartDate < firstSeeded) {
+                startOption = targetStartDate;
+                this.logger.info(`指定された開始日 (${targetStartDate.toISOString().split('T')[0]}) は既存データの最古日 (${firstSeeded.toISOString().split('T')[0]}) より古いです。過去データを取得します。`);
             }
+            // ケース2: 既存データより新しい期間のみ必要な場合 (Catch-up)
+            else {
+                let effectiveStart = lastSeeded;
+                if (targetStartDate && targetStartDate > effectiveStart) {
+                    effectiveStart = targetStartDate;
+                    this.logger.info(`ターゲット日付 (${targetStartDate.toISOString().split('T')[0]}) は最終Seeding日 (${lastSeeded.toISOString().split('T')[0]}) より新しいです。ターゲット日付から開始します。`);
+                } else {
+                    this.logger.info(`既存のメタデータを ${lastSeeded.toISOString().split('T')[0]} まで確認しました (最古: ${firstSeeded.toISOString().split('T')[0]})。ここからSeedingを再開します。`);
+                }
 
-            // 連続性確保のため1-2日戻る
-            const buffer = new Date(effectiveStart);
-            buffer.setDate(buffer.getDate() - 2);
-            startOption = buffer;
+                // 連続性確保のため1-2日戻る
+                const buffer = new Date(effectiveStart);
+                buffer.setDate(buffer.getDate() - 2);
+                startOption = buffer;
+            }
 
         } else if (targetStartDate) {
             startOption = targetStartDate;
@@ -87,6 +96,14 @@ export class EdinetCommonService {
     }
 
     private getLastSeededDate(): Date | null {
+        return this.getSeededDate('MAX');
+    }
+
+    private getFirstSeededDate(): Date | null {
+        return this.getSeededDate('MIN');
+    }
+
+    private getSeededDate(aggregator: 'MAX' | 'MIN'): Date | null {
         try {
             if (!fs.existsSync(this.edinetDbPath)) return null;
             const db = new Database(this.edinetDbPath, { readonly: true });
@@ -98,15 +115,15 @@ export class EdinetCommonService {
                 return null;
             }
 
-            const result: any = db.prepare("SELECT MAX(submit_date) as maxDate FROM documents").get();
+            const result: any = db.prepare(`SELECT ${aggregator}(submit_date) as date FROM documents`).get();
             db.close();
 
-            if (result && result.maxDate) {
-                return new Date(result.maxDate);
+            if (result && result.date) {
+                return new Date(result.date);
             }
             return null;
         } catch (e) {
-            this.logger.warn(`最終Seeding日時の取得に失敗しました: ${String(e)}`);
+            this.logger.warn(`${aggregator} Seeding日時の取得に失敗しました: ${String(e)}`);
             return null;
         }
     }
