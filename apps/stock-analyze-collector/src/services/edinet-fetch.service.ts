@@ -35,14 +35,17 @@ export class EdinetFetchService {
     /**
      * 指定された銘柄のメイン処理
      */
-    async processTicker(ticker: string, years: number): Promise<void> {
+    async processTicker(ticker: string, months: number): Promise<void> {
         const targetSecCode = ticker + '0'; // EDINETでは通常 Ticker + '0' が使用される
         let foundDocsCount = 0;
 
-        for (let i = 0; i < years; i++) {
-            const count = await this.processYear(ticker, targetSecCode, i);
-            foundDocsCount += count;
-        }
+        // 指定月数分ループするのではなく、範囲指定で処理するように変更したほうが効率的だが、
+        // 既存の processYear ロジックを活かすなら、月ごとに処理するか、
+        // あるいは processRange(start, end) のようなメソッドを作るのが良い。
+        // ここでは簡単に processAll と同様のロジックに修正する (一括取得)。
+
+        const count = await this.processTickerRange(ticker, targetSecCode, months);
+        foundDocsCount += count;
 
         if (foundDocsCount === 0) {
             this.logger.warn('指定された範囲でドキュメントが見つかりませんでした。銘柄コードや期間を確認してください。');
@@ -52,19 +55,19 @@ export class EdinetFetchService {
     /**
      * 指定された年数分の全銘柄処理
      */
-    async processAll(years: number): Promise<void> {
+    async processAll(months: number): Promise<void> {
         // 1. シード更新 (メタデータ)
-        await this.commonService.updateMetadata(years);
+        await this.commonService.updateMetadata(months);
 
-        // 2. ローカルDBから過去数年分のドキュメントを検索
-        this.logger.info(`過去 ${years} 年分のドキュメントをローカルDBから検索中...`);
+        // 2. ローカルDBから過去数ヶ月分のドキュメントを検索
+        this.logger.info(`過去 ${months} ヶ月分のドキュメントをローカルDBから検索中...`);
         const repo = new EdinetRepository(this.edinetDbPath);
 
         try {
             // 日付範囲の計算
             const endDateObj = new Date();
             const startDateObj = new Date();
-            startDateObj.setFullYear(startDateObj.getFullYear() - years);
+            startDateObj.setMonth(startDateObj.getMonth() - months);
 
             const formatDate = (d: Date) => d.toISOString().split('T')[0];
             const startStr = formatDate(startDateObj);
@@ -100,8 +103,17 @@ export class EdinetFetchService {
     /**
      * 特定の年範囲のデータを処理
      */
-    private async processYear(ticker: string, targetSecCode: string, yearOffset: number): Promise<number> {
-        const { startStr, endStr } = this.calculateDateRange(yearOffset);
+    /**
+     * 特定の期間(過去Nヶ月)のデータを処理
+     */
+    private async processTickerRange(ticker: string, targetSecCode: string, months: number): Promise<number> {
+        const endDateObj = new Date();
+        const startDateObj = new Date();
+        startDateObj.setMonth(startDateObj.getMonth() - months);
+
+        const formatDate = (d: Date) => d.toISOString().split('T')[0];
+        const startStr = formatDate(startDateObj);
+        const endStr = formatDate(endDateObj);
 
         this.logger.info(`有価証券報告書を検索中 (${startStr} ~ ${endStr}) 銘柄: ${ticker} (${targetSecCode})...`);
 
@@ -145,20 +157,7 @@ export class EdinetFetchService {
     /**
      * 年オフセットから開始日・終了日を計算
      */
-    private calculateDateRange(yearOffset: number): { startStr: string, endStr: string } {
-        const endDateObj = new Date();
-        endDateObj.setFullYear(endDateObj.getFullYear() - yearOffset);
 
-        const startDateObj = new Date();
-        startDateObj.setFullYear(startDateObj.getFullYear() - yearOffset - 1);
-        startDateObj.setDate(startDateObj.getDate() + 1);
-
-        const formatDate = (d: Date) => d.toISOString().split('T')[0];
-        return {
-            startStr: formatDate(startDateObj),
-            endStr: formatDate(endDateObj)
-        };
-    }
 
     /**
      * ドキュメントを月ごとにグループ化してバッチ処理

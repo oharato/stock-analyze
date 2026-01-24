@@ -29,16 +29,16 @@ export class EdinetCommonService {
     /**
      * ローカルEDINETメタデータDBの更新 (Seeding) - 最適化済み
      */
-    async updateMetadata(years?: number): Promise<void> {
-        const periodStr = years ? `過去 ${years} 年分` : 'デフォルト期間';
+    async updateMetadata(months?: number): Promise<void> {
+        const periodStr = months ? `過去 ${months} ヶ月分` : 'デフォルト期間';
         this.logger.info(`EDINETメタデータ更新 (Seeding) を開始: ${periodStr}...`);
 
         let startOption: Date | undefined;
         let targetStartDate: Date | undefined;
 
-        if (years) {
+        if (months) {
             targetStartDate = new Date();
-            targetStartDate.setFullYear(targetStartDate.getFullYear() - years);
+            targetStartDate.setMonth(targetStartDate.getMonth() - months);
         }
 
         // 最適化: Seeding済み範囲を確認

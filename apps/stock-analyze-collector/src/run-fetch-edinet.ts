@@ -28,17 +28,17 @@ async function main() {
             description: 'Ticker symbol (e.g. 7203). If omitted, fetches all tickers.',
             demandOption: false
         })
-        .option('years', {
-            alias: 'y',
+        .option('months', {
+            alias: 'm',
             type: 'number',
-            description: 'Number of years to look back',
-            default: 5
+            description: 'Number of months to look back',
+            default: 60
         })
         .help()
         .argv;
 
     const ticker = argv.ticker;
-    const years = argv.years;
+    const months = argv.months;
 
     // データ保存先ディレクトリ
     const dataDir = path.resolve(__dirname, '../../../data/raw/edinet');
@@ -62,13 +62,13 @@ async function main() {
         await service.init();
 
         if (ticker) {
-            await service.processTicker(ticker, years);
+            await service.processTicker(ticker, months);
         } else {
             if (!apiKey) {
                 logger.error('EDINET_API_KEY is required for processing all tickers (due to Seeding). Please set it in .env.');
                 process.exit(1);
             }
-            await service.processAll(years);
+            await service.processAll(months);
         }
 
     } catch (e: any) {
