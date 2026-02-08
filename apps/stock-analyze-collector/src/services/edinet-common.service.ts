@@ -166,7 +166,7 @@ export class EdinetCommonService {
 
         for (let attempt = 1; attempt <= maxRetries; attempt++) {
             try {
-                this.logger.info(`XBRLをAPIから取得中: ${docID} ${infoStr} (Attempt ${attempt}/${maxRetries})`);
+                // this.logger.info(`XBRLをAPIから取得中: ${docID} ${infoStr} (Attempt ${attempt}/${maxRetries})`);
                 fetchedXbrl = await this.downloader.fetchXbrl(docID);
                 if (fetchedXbrl) break;
 
@@ -188,7 +188,7 @@ export class EdinetCommonService {
 
         // デフォルトで .xml として保存
         fs.writeFileSync(cachePathXml, fetchedXbrl, 'utf-8');
-        this.logger.info(`XBRLをキャッシュしました: ${cachePathXml}`);
+        // this.logger.info(`XBRLをキャッシュしました: ${cachePathXml}`);
 
         return fetchedXbrl;
     }

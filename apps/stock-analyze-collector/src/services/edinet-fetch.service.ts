@@ -257,7 +257,7 @@ export class EdinetFetchService {
                 }
 
                 if ((index + 1) % 10 === 0) {
-                    process.stdout.write('.');
+                    process.stdout.write(index.toString());
                 }
 
                 return rowData;
