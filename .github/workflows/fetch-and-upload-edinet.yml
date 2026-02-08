@@ -2,6 +2,12 @@ name: Fetch and Upload Edinet
 
 on:
   workflow_dispatch:
+    inputs:
+      months:
+        description: 'Number of months to fetch'
+        required: true
+        default: '6'
+        type: number
   # schedule:
   #   - cron: '0 12 * * *'
 
@@ -53,7 +59,7 @@ jobs:
             data-linux-
 
       - name: Fetch EDINET
-        run: pnpm --filter stock-analyze-collector run run:fetch-edinet --months 50
+        run: pnpm --filter stock-analyze-collector run run:fetch-edinet --months ${{ inputs.months }}
         env:
           EDINET_API_KEY: ${{ secrets.EDINET_API_KEY }}
 
