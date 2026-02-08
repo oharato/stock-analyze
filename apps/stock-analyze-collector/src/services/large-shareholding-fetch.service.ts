@@ -126,7 +126,11 @@ export class LargeShareholdingFetchService {
 
     private async processDocument(doc: any): Promise<LargeShareholding | null> {
         // 共通サービスを使用してXBRLテキストを取得 (キャッシュ処理含む)
-        const xbrlText = await this.commonService.fetchXbrl(doc.docID);
+        const xbrlText = await this.commonService.fetchXbrl(doc.docID, {
+            filerName: doc.filerName,
+            docDescription: doc.docDescription,
+            submitDate: doc.submitDate || doc.date
+        });
         if (!xbrlText) {
             this.logger.warn(`XBRLを取得できませんでした: ${doc.docID}`);
             return null;

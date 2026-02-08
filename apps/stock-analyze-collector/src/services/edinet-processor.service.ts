@@ -20,7 +20,11 @@ export class EdinetProcessorService {
      */
     async process(doc: any, docDate: string, ticker: string): Promise<EdinetFinancial | null> {
         // XBRL取得 (キャッシュまたはAPI)
-        const xbrlText = await this.commonService.fetchXbrl(doc.docID);
+        const xbrlText = await this.commonService.fetchXbrl(doc.docID, {
+            filerName: doc.filerName,
+            docDescription: doc.docDescription,
+            submitDate: docDate
+        });
         if (!xbrlText) return null;
 
         const parsed = this.parser.parse(xbrlText);

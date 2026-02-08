@@ -132,7 +132,7 @@ export class EdinetCommonService {
      * ファイルシステムキャッシュを利用してXBRLテキストを取得
      * (キャッシュディレクトリは通常、dataDirの親ディレクトリの xbrl-cache)
      */
-    async fetchXbrl(docID: string): Promise<string | null> {
+    async fetchXbrl(docID: string, docInfo?: { filerName?: string; docDescription?: string; submitDate?: string }): Promise<string | null> {
         // dataDir (ex: data/raw/edinet) から相対パスでキャッシュディレクトリを指定
         const cacheDir = path.resolve(this.dataDir, '../xbrl-cache');
 
@@ -140,6 +140,7 @@ export class EdinetCommonService {
         const cachePathXml = path.join(cacheDir, `${docID}.xml`);
 
         if (fs.existsSync(cachePathXml)) {
+            // キャッシュヒット時は詳細ログを省略 (数が多いので)
             this.logger.info(`キャッシュされたXBRLを使用: ${cachePathXml}`);
             return fs.readFileSync(cachePathXml, 'utf-8');
         }
@@ -157,9 +158,15 @@ export class EdinetCommonService {
 
         let fetchedXbrl: string | undefined | null = null;
         const maxRetries = 3;
+
+        // ドキュメント情報の文字列を構築
+        const infoStr = docInfo
+            ? `[${docInfo.submitDate || 'Unknown Date'}] ${docInfo.filerName || 'Unknown Filer'} - ${docInfo.docDescription || 'Unknown Doc'}`
+            : '';
+
         for (let attempt = 1; attempt <= maxRetries; attempt++) {
             try {
-                this.logger.info(`XBRLをAPIから取得中: ${docID} (Attempt ${attempt}/${maxRetries})`);
+                this.logger.info(`XBRLをAPIから取得中: ${docID} ${infoStr} (Attempt ${attempt}/${maxRetries})`);
                 fetchedXbrl = await this.downloader.fetchXbrl(docID);
                 if (fetchedXbrl) break;
 
