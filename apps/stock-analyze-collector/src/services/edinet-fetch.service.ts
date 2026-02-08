@@ -301,11 +301,11 @@ export class EdinetFetchService {
 
     private logDiskSpace(): void {
         try {
-            const stdout = execSync('df -h /home/data').toString().trim();
-            this.logger.info(`\n[Disk Space /home/data]\n${stdout}`);
+            const stdout = execSync(`df -h ${this.dataDir}`).toString().trim();
+            this.logger.info(`\n[Disk Space ${this.dataDir}]\n${stdout}`);
         } catch (e) {
             try {
-                const stdout = execSync('df -h .').toString().trim();
+                const stdout = execSync(`df -h .`).toString().trim();
                 this.logger.info(`\n[Disk Space .]\n${stdout}`);
             } catch (e2) {
                 // ignore
