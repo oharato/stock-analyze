@@ -1,5 +1,6 @@
 import { EdinetFinancial } from 'stock-analyze-domain';
 import * as fs from 'fs';
+import { execSync } from 'child_process';
 import * as path from 'path';
 import { EdinetDocumentType, EdinetRepository } from 'edinet-ts';
 import { LoggerService } from './logger.service.js';
@@ -205,6 +206,7 @@ export class EdinetFetchService {
             }
 
             this.logger.info(`[batch] ${monthKey} を処理中 (ドキュメント数: ${docsInMonth.length}, 当月: ${isCurrentMonth})`);
+            this.logDiskSpace();
 
             // ファイルが存在する場合、既存の docID をロード
             const existingDocIds = new Set<string>();
@@ -258,6 +260,7 @@ export class EdinetFetchService {
 
                 if ((index + 1) % 10 === 0) {
                     process.stdout.write(index.toString());
+                    // this.logDiskSpace();
                 }
 
                 return rowData;
@@ -293,6 +296,20 @@ export class EdinetFetchService {
             await writer.close();
         } catch (e: any) {
             throw new Error(`Parquet書き込みに失敗しました: ${e.message}`);
+        }
+    }
+
+    private logDiskSpace(): void {
+        try {
+            const stdout = execSync('df -h /home/data').toString().trim();
+            this.logger.info(`\n[Disk Space /home/data]\n${stdout}`);
+        } catch (e) {
+            try {
+                const stdout = execSync('df -h .').toString().trim();
+                this.logger.info(`\n[Disk Space .]\n${stdout}`);
+            } catch (e2) {
+                // ignore
+            }
         }
     }
 }
