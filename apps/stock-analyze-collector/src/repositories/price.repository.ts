@@ -33,7 +33,15 @@ export class PriceRepository {
 
     const writer = await ParquetWriter.openFile(schema, outputPath);
     for (const row of data) {
-      if (row.volume === null || row.volume === undefined) continue;
+      if (
+        row.volume === null || row.volume === undefined ||
+        row.open === null || row.open === undefined ||
+        row.high === null || row.high === undefined ||
+        row.low === null || row.low === undefined ||
+        row.close === null || row.close === undefined
+      ) {
+        continue;
+      }
 
       const rowData: any = {
         date: row.date.getTime(),

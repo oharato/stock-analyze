@@ -32,7 +32,8 @@ export class FetchStockPricesService {
                     await this.processAutoMode(ticker, stock.code);
                 }
             } catch (err: any) {
-                this.logger.warn(`  -> Could not process data for ${ticker}. Skipping. Error: ${err.message}`);
+                const errorMsg = err instanceof Error ? err.message : String(err);
+                this.logger.warn(`  -> Could not process data for ${ticker}. Skipping. Error: ${errorMsg}`);
             }
         }
 
