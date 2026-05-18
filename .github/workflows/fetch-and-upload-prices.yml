@@ -63,6 +63,11 @@ jobs:
           DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
           DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
 
+      - name: Upload Stock List to MotherDuck
+        run: pnpm --filter stock-analyze-motherduck run upload:stock-list
+        env:
+          MOTHERDUCK_TOKEN: ${{ secrets.MOTHERDUCK_TOKEN }}
+
       - name: Fetch Stock Prices
         run: pnpm --filter stock-analyze-collector run run:fetch-stock-prices
         env:
@@ -76,6 +81,11 @@ jobs:
           DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
           # Optional: Override destination path if needed
           # DATABRICKS_DESTINATION_PATH: /Volumes/main/default/prices
+
+      - name: Upload Prices to MotherDuck
+        run: pnpm --filter stock-analyze-motherduck run upload:price
+        env:
+          MOTHERDUCK_TOKEN: ${{ secrets.MOTHERDUCK_TOKEN }}
 
       - name: Save Data Cache
         if: always()

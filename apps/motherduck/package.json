@@ -1,0 +1,19 @@
+{
+  "name": "stock-analyze-motherduck",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "upload:price": "tsx src/upload-price.ts",
+    "upload:stock-list": "tsx src/upload-stock-list.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@duckdb/node-api": "^1.4.3-r.1",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.28",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}
