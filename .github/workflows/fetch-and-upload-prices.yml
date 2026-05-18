@@ -43,13 +43,16 @@ jobs:
       - name: Build Domain
         run: pnpm --filter stock-analyze-domain run build
 
+      - name: Get current date
+        id: date
+        run: echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+
       - name: Restore Data Cache
         uses: actions/cache/restore@v4
         with:
           path: data
-          key: data-linux-${{ github.run_id }}-${{ github.run_attempt }}
+          key: data-linux-${{ steps.date.outputs.date }}
           restore-keys: |
-            data-linux-${{ github.run_id }}-
             data-linux-
 
       - name: Fetch Stock List
@@ -92,4 +95,4 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: data
-          key: data-linux-${{ github.run_id }}-${{ github.run_attempt }}
+          key: data-linux-${{ steps.date.outputs.date }}
