@@ -29,6 +29,8 @@ export const Sidebar = () => ({
             window.location.href = '/fundamentals.html';
         } else if (table === 'large_shareholdings') {
             window.location.href = '/large_shareholdings.html';
+        } else if (table === 'candlestick') {
+            window.location.href = '/candlestick.html';
         } else {
             window.location.href = `/?table=${table}`;
         }

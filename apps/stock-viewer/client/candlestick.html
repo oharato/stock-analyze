@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>日足チャート（セクター別）- Stock Viewer</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+    <link rel="stylesheet" href="/styles/custom.css">
+    <link rel="icon" href="/favicon.ico">
+    <style>
+        [x-cloak] { display: none !important; }
+
+        .page-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+            margin-bottom: 1.5rem;
+        }
+
+        .page-header h1 {
+            margin: 0;
+            font-size: 1.4rem;
+        }
+
+        .sector-select {
+            min-width: 200px;
+        }
+
+        .stock-count {
+            font-size: 0.85rem;
+            color: var(--pico-muted-color);
+        }
+
+        .chart-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1.5rem;
+        }
+
+        .chart-card {
+            background: #1a212c;
+            border-radius: 8px;
+            padding: 1rem;
+        }
+
+        .chart-card-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .chart-card-header .stock-name {
+            font-weight: 600;
+            font-size: 1rem;
+        }
+
+        .chart-card-header .stock-code {
+            font-size: 0.8rem;
+            color: var(--pico-muted-color);
+        }
+
+        .market-badge {
+            font-size: 0.7rem;
+            padding: 2px 7px;
+            border-radius: 3px;
+            color: #fff;
+        }
+
+        .market-badge.prime    { background: #0777b3; }
+        .market-badge.standard { background: #638cad; }
+        .market-badge.growth   { background: #e18727; }
+        .market-badge.other    { background: #666; }
+
+        .chart-placeholder {
+            height: 300px;
+            background: #131722;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--pico-muted-color);
+            font-size: 0.85rem;
+        }
+
+        .no-data-msg {
+            color: var(--pico-muted-color);
+            font-style: italic;
+        }
+    </style>
+</head>
+
+<body x-data="candlestickPage" x-init="init()">
+    <div class="mobile-header">
+        <button class="outline secondary" @click="$store.ui.toggleSidebar()" style="margin-bottom: 0;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="3" y1="12" x2="21" y2="12"></line>
+                <line x1="3" y1="6" x2="21" y2="6"></line>
+                <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+        </button>
+        <h3 style="margin: 0; font-size: 1.2rem;"><a href="/" style="color: inherit; text-decoration: none;">Stock Viewer</a></h3>
+        <div style="width: 42px;"></div>
+    </div>
+
+    <div class="sidebar-overlay" :class="$store.ui.sidebarOpen ? 'open' : ''" @click="$store.ui.closeSidebar()"></div>
+
+    <nav class="sidebar" :class="$store.ui.sidebarOpen ? 'open' : ''" x-data="sidebar" x-init="init()">
+        <header style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+            <h2><a href="/" style="color: inherit; text-decoration: none;">Stock Viewer</a></h2>
+            <button class="outline secondary mobile-only" @click="$store.ui.closeSidebar()"
+                style="border: none; padding: 0.5rem; display: none;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        </header>
+        <ul>
+            <template x-for="table in tables" :key="table">
+                <li>
+                    <button class="outline secondary" @click="navigate(table); $store.ui.closeSidebar()" x-text="table"></button>
+                </li>
+            </template>
+            <li>
+                <button class="outline" @click="window.location.href='/candlestick.html'; $store.ui.closeSidebar()">日足チャート</button>
+            </li>
+        </ul>
+    </nav>
+
+    <main>
+        <div class="scroll-area">
+            <div class="page-header">
+                <h1>日足チャート + 移動平均線</h1>
+                <template x-if="sectors.length > 0">
+                    <select class="sector-select" x-model="selectedSector" @change="onSectorChange()">
+                        <template x-for="s in sectors" :key="s">
+                            <option :value="s" x-text="s"></option>
+                        </template>
+                    </select>
+                </template>
+                <template x-if="!loading && companies.length > 0">
+                    <span class="stock-count" x-text="companies.length + ' 銘柄'"></span>
+                </template>
+            </div>
+
+            <template x-if="loading">
+                <div>
+                    <template x-for="i in [1,2,3]" :key="i">
+                        <div class="chart-card" style="margin-bottom: 1.5rem;">
+                            <div style="height: 20px; width: 200px; background: #2a2e39; border-radius: 4px; margin-bottom: 0.75rem;" class="animate-pulse"></div>
+                            <div style="height: 300px; background: #131722; border-radius: 4px;" class="animate-pulse"></div>
+                        </div>
+                    </template>
+                </div>
+            </template>
+
+            <template x-if="!loading && companies.length === 0 && selectedSector">
+                <p class="no-data-msg">このセクターに価格データのある銘柄がありません。</p>
+            </template>
+
+            <template x-if="!loading && companies.length > 0">
+                <div class="chart-grid">
+                    <template x-for="company in companies" :key="company.code">
+                        <div class="chart-card">
+                            <div class="chart-card-header">
+                                <span class="stock-name" x-text="company.name"></span>
+                                <span class="stock-code" x-text="company.code"></span>
+                                <span class="market-badge"
+                                    :class="company.market && company.market.includes('プライム') ? 'prime'
+                                          : company.market && company.market.includes('スタンダード') ? 'standard'
+                                          : company.market && company.market.includes('グロース') ? 'growth'
+                                          : 'other'"
+                                    x-text="(company.market || '').replace('（内国株式）','').replace('（外国株式）','')">
+                                </span>
+                            </div>
+                            <div
+                                :id="'chart-' + company.code"
+                                :data-code="company.code"
+                                style="height: 300px;">
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </template>
+        </div>
+    </main>
+
+    <script type="module" src="/src/pages/candlestick.ts"></script>
+</body>
+</html>

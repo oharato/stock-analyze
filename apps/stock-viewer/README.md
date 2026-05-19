@@ -57,6 +57,33 @@ pnpm build
 pnpm test
 ```
 
+## ページ一覧
+
+| URL | 説明 |
+|-----|------|
+| `/` | テーブル一覧・汎用クエリビューアー |
+| `/companies.html` | 企業一覧（セクター・市場フィルター付き） |
+| `/company.html?code=xxxx` | 企業詳細（日足/週足/月足チャート、財務情報、EDINET） |
+| `/candlestick.html` | **日足ローソク足チャート（セクター別）** |
+| `/edinet.html` | EDINET ベクトル検索 |
+| `/fundamentals.html` | 財務データ一覧 |
+| `/large_shareholdings.html` | 大量保有報告一覧 |
+
+## 日足チャートページ（セクター別）
+
+`/candlestick.html` では、セクター33分類のドロップダウンから業種を選択すると、そのセクターに属する全銘柄の日足ローソク足チャート（直近700日）と移動平均線（MA5/MA25/MA75）を一覧表示します。
+
+- URLパラメータ `?sector33=xxx` でブックマーク・リロード対応
+- `IntersectionObserver` によるスクロール連動の遅延チャート初期化（多銘柄でも軽快）
+- プライム→スタンダード→グロース→その他の順でソート
+
+### 利用するAPIエンドポイント
+
+| エンドポイント | 説明 |
+|--------------|------|
+| `GET /api/sectors` | sector33 一覧を返す |
+| `GET /api/sector-charts?sector33=xxx&days=700` | セクター内全銘柄の企業情報と価格データを一括返却 |
+
 ## ディレクトリ構造
 
 - `src/`: サーバーサイドソースコード (Hono, DuckDB 管理)

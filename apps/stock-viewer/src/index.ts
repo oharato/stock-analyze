@@ -163,6 +163,74 @@ app.get('/api/search/edinet', async (c) => {
     }
 });
 
+app.get('/api/sectors', async (c) => {
+    try {
+        const res = await duckdb.runQuery<{ sector33: string }>(
+            "SELECT DISTINCT sector33 FROM companies WHERE sector33 IS NOT NULL AND sector33 != '' AND sector33 != '-' ORDER BY sector33"
+        );
+        c.header('Cache-Control', 'public, max-age=3600');
+        return c.json(res.map(r => r.sector33));
+    } catch (e: any) {
+        console.error('Error in /api/sectors:', e);
+        return c.json({ error: e.message }, 500);
+    }
+});
+
+app.get('/api/sector-charts', async (c) => {
+    const sector33 = c.req.query('sector33');
+    const days = Math.min(parseInt(c.req.query('days') || '700'), 2000);
+
+    if (!sector33) return c.json({ error: 'sector33 is required' }, 400);
+
+    const escapedSector = sector33.replace(/'/g, "''");
+
+    try {
+        const companies = await duckdb.runQuery(
+            `SELECT code, name, market, sector33
+             FROM companies
+             WHERE sector33 = '${escapedSector}'
+             ORDER BY
+               CASE WHEN market LIKE 'プライム%' THEN 1
+                    WHEN market LIKE 'スタンダード%' THEN 2
+                    WHEN market LIKE 'グロース%' THEN 3
+                    ELSE 4 END,
+               code ASC`
+        );
+
+        if (companies.length === 0) {
+            return c.json({ companies: [], prices: {} });
+        }
+
+        const codeList = (companies as any[]).map(r => `'${String(r.code).replace(/'/g, "''")}'`).join(',');
+
+        const priceRows = await duckdb.runQuery(
+            `WITH ranked AS (
+               SELECT code, date, open, high, low, close, volume,
+                 ROW_NUMBER() OVER (PARTITION BY code ORDER BY date DESC) AS rn
+               FROM prices
+               WHERE code IN (${codeList})
+             )
+             SELECT code, date, open, high, low, close, volume
+             FROM ranked
+             WHERE rn <= ${days}
+             ORDER BY code, date`
+        );
+
+        const prices: Record<string, any[]> = {};
+        for (const row of priceRows as any[]) {
+            const code = String(row.code);
+            if (!prices[code]) prices[code] = [];
+            prices[code].push(row);
+        }
+
+        c.header('Cache-Control', 'no-cache');
+        return c.json({ companies, prices });
+    } catch (e: any) {
+        console.error('Error in /api/sector-charts:', e);
+        return c.json({ error: e.message }, 500);
+    }
+});
+
 app.get('/api/query', async (c) => {
     const sql = c.req.query('sql');
     if (!sql) return c.json({ error: "No SQL provided" }, 400);

@@ -16,6 +16,7 @@ export default defineConfig({
                 fundamentals: resolve(__dirname, 'fundamentals.html'),
                 large_shareholdings: resolve(__dirname, 'large_shareholdings.html'),
                 company: resolve(__dirname, 'company.html'),
+                candlestick: resolve(__dirname, 'candlestick.html'),
             },
         },
     },

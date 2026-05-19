@@ -51,6 +51,9 @@
                         @click="navigate(table); $store.ui.closeSidebar()" x-text="table"></button>
                 </li>
             </template>
+            <li>
+                <button class="outline secondary" @click="window.location.href='/candlestick.html'; $store.ui.closeSidebar()">日足チャート</button>
+            </li>
         </ul>
     </nav>
 
