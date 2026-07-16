@@ -37,7 +37,9 @@ function hasParquetMagic(filePath: string): boolean {
     } finally {
       fs.closeSync(fd);
     }
-  } catch {
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`Failed to validate parquet file ${path.basename(filePath)}: ${message}`);
     return false;
   }
 }
