@@ -4,7 +4,7 @@ import 'dotenv/config';
 import { DuckDBInstance } from '@duckdb/node-api';
 
 const VALID_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
-const MIN_PARQUET_MAGIC_BYTES = 8;
+const MIN_PARQUET_FILE_SIZE = 8;
 
 function validateIdentifier(name: string, label: string): string {
   if (!VALID_IDENTIFIER.test(name)) {
@@ -24,7 +24,7 @@ function toDuckPath(filePath: string): string {
 function hasParquetMagic(filePath: string): boolean {
   try {
     const stat = fs.statSync(filePath);
-    if (stat.size < MIN_PARQUET_MAGIC_BYTES) {
+    if (stat.size < MIN_PARQUET_FILE_SIZE) {
       return false;
     }
 
