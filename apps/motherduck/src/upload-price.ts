@@ -4,6 +4,7 @@ import 'dotenv/config';
 import { DuckDBInstance } from '@duckdb/node-api';
 
 const VALID_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const MIN_PARQUET_MAGIC_BYTES = 8;
 
 function validateIdentifier(name: string, label: string): string {
   if (!VALID_IDENTIFIER.test(name)) {
@@ -23,7 +24,7 @@ function toDuckPath(filePath: string): string {
 function hasParquetMagic(filePath: string): boolean {
   try {
     const stat = fs.statSync(filePath);
-    if (stat.size < 8) {
+    if (stat.size < MIN_PARQUET_MAGIC_BYTES) {
       return false;
     }
 
@@ -39,7 +40,7 @@ function hasParquetMagic(filePath: string): boolean {
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.warn(`Failed to validate parquet file ${path.basename(filePath)}: ${message}`);
+    console.warn(`Failed to validate parquet file at ${filePath} while checking PAR1 magic bytes: ${message}`);
     return false;
   }
 }
