@@ -4,6 +4,7 @@ import 'dotenv/config';
 import { DuckDBInstance } from '@duckdb/node-api';
 
 const VALID_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const MIN_PARQUET_FILE_SIZE = 8;
 
 function validateIdentifier(name: string, label: string): string {
   if (!VALID_IDENTIFIER.test(name)) {
@@ -18,6 +19,30 @@ function escapeSqlLiteral(value: string): string {
 
 function toDuckPath(filePath: string): string {
   return filePath.split(path.sep).join('/');
+}
+
+function hasParquetMagic(filePath: string): boolean {
+  try {
+    const stat = fs.statSync(filePath);
+    if (stat.size < MIN_PARQUET_FILE_SIZE) {
+      return false;
+    }
+
+    const fd = fs.openSync(filePath, 'r');
+    try {
+      const header = Buffer.alloc(4);
+      const footer = Buffer.alloc(4);
+      fs.readSync(fd, header, 0, 4, 0);
+      fs.readSync(fd, footer, 0, 4, stat.size - 4);
+      return header.toString('ascii') === 'PAR1' && footer.toString('ascii') === 'PAR1';
+    } finally {
+      fs.closeSync(fd);
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`Failed to validate parquet file at ${filePath} while checking PAR1 magic bytes: ${message}`);
+    return false;
+  }
 }
 
 async function attachMotherDuckDatabase(conn: Awaited<ReturnType<DuckDBInstance['connect']>>, database: string): Promise<void> {
@@ -71,7 +96,21 @@ async function main(): Promise<void> {
     return;
   }
 
-  console.log(`Found ${files.length} parquet files in ${sourceDir}`);
+  const validFiles = files.filter((file) => {
+    const parquetFile = path.join(sourceDir, file);
+    if (hasParquetMagic(parquetFile)) {
+      return true;
+    }
+    console.warn(`Skipping invalid parquet file: ${file}`);
+    return false;
+  });
+
+  if (validFiles.length === 0) {
+    console.log(`No valid parquet files found in ${sourceDir}`);
+    return;
+  }
+
+  console.log(`Found ${validFiles.length} valid parquet files in ${sourceDir}`);
 
   const db = await DuckDBInstance.create(':memory:');
   const conn = await db.connect();
@@ -84,7 +123,7 @@ async function main(): Promise<void> {
     await attachMotherDuckDatabase(conn, database);
     await conn.run(`CREATE SCHEMA IF NOT EXISTS md.${schema};`);
 
-    const firstFile = toDuckPath(path.join(sourceDir, files[0]));
+    const firstFile = toDuckPath(path.join(sourceDir, validFiles[0]));
     await conn.run(
       `CREATE TABLE IF NOT EXISTS ${fullTableName} AS SELECT * FROM read_parquet('${escapeSqlLiteral(firstFile)}') WHERE 1 = 0;`
     );
@@ -95,9 +134,9 @@ async function main(): Promise<void> {
     }
 
     let totalLoaded = 0;
-    for (const [index, file] of files.entries()) {
+    for (const [index, file] of validFiles.entries()) {
       const parquetFile = toDuckPath(path.join(sourceDir, file));
-      console.log(`[${index + 1}/${files.length}] Loading ${file}...`);
+      console.log(`[${index + 1}/${validFiles.length}] Loading ${file}...`);
 
       const insertSql =
         `INSERT INTO ${fullTableName} ` +
